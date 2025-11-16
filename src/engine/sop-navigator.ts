@@ -126,7 +126,10 @@ export class SOPNavigator {
    * Reset the navigator to start over
    */
   reset(): void {
-    this.stateManager = new ExecutionStateManager(this.sop.startNode, this.userId)
+    this.stateManager = new ExecutionStateManager(
+      this.sop.startNode,
+      this.userId
+    )
   }
 
   /**

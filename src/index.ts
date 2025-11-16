@@ -48,7 +48,7 @@ async function main() {
     configuration: {
       baseURL: litellmProxyUrl,
     },
-    temperature: 0.7,
+    temperature: 0.1,
   })
 
   // Initialize SOP Agent with demo userId

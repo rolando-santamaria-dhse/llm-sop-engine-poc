@@ -237,16 +237,19 @@ Now, process the user's message according to the SOP workflow.`
       type: 'function' as const,
       function: {
         name: 'updateContext',
-        description: 'Update context values based on user intent or extracted information. Use this to set context values like customerWantsCancellation, or any other context data needed for decision nodes.',
+        description:
+          'Update context values based on user intent or extracted information. Use this to set context values like customerWantsCancellation, or any other context data needed for decision nodes.',
         parameters: {
           type: 'object',
           properties: {
             key: {
               type: 'string',
-              description: 'The context key to update (e.g., "customerWantsCancellation")',
+              description:
+                'The context key to update (e.g., "customerWantsCancellation")',
             },
             value: {
-              description: 'The value to set (can be boolean, string, number, or object)',
+              description:
+                'The value to set (can be boolean, string, number, or object)',
             },
           },
           required: ['key', 'value'],
@@ -496,13 +499,13 @@ Now, process the user's message according to the SOP workflow.`
       // Extract parameters from tool params, replacing placeholders
       const params: Record<string, any> = {}
       let hasInvalidParams = false
-      
+
       if (currentNode.toolParams) {
         for (const [key, value] of Object.entries(currentNode.toolParams)) {
           if (typeof value === 'string' && value.startsWith('{context.')) {
             const contextKey = value.slice(9, -1) // Remove {context. and }
             const contextValue = this.stateManager.getContextValue(contextKey)
-            
+
             // Check if this is a required parameter and if it's missing
             if (contextValue === null || contextValue === undefined) {
               logger.warn(
@@ -512,7 +515,7 @@ Now, process the user's message according to the SOP workflow.`
               hasInvalidParams = true
               break
             }
-            
+
             params[key] = contextValue
           } else {
             params[key] = value
@@ -532,7 +535,10 @@ Now, process the user's message according to the SOP workflow.`
       // Execute the tool
       try {
         const toolResult = await this.executeTool(currentNode.tool, params)
-        logger.debug({ tool: currentNode.tool, result: toolResult }, 'Tool execution result')
+        logger.debug(
+          { tool: currentNode.tool, result: toolResult },
+          'Tool execution result'
+        )
 
         // Update context with tool result
         if (currentNode.tool === 'getUserDetails') {
@@ -559,10 +565,7 @@ Now, process the user's message according to the SOP workflow.`
           )
         }
       } catch (error) {
-        logger.error(
-          { tool: currentNode.tool, error },
-          'Error executing tool'
-        )
+        logger.error({ tool: currentNode.tool, error }, 'Error executing tool')
         this.stateManager.error()
         throw error
       }
@@ -1026,25 +1029,25 @@ You MUST respond - do not leave this empty.`
    */
   private hasErrorsInConditionContext(condition: string): boolean {
     const context = this.stateManager.getContext()
-    
+
     // Extract context variable names from the condition
     // e.g., "context.orderStatus.minutesLate > 20" -> ["orderStatus"]
     const contextVarMatches = condition.match(/context\.([a-zA-Z0-9_]+)/g)
-    
+
     if (!contextVarMatches) {
       return false
     }
-    
+
     for (const match of contextVarMatches) {
       const varName = match.replace('context.', '')
       const value = context[varName]
-      
+
       // Check if the value exists and has an error property
       if (value && typeof value === 'object' && value.error) {
         return true
       }
     }
-    
+
     return false
   }
 
@@ -1054,20 +1057,20 @@ You MUST respond - do not leave this empty.`
    */
   private canEvaluateDecision(condition: string): boolean {
     const context = this.stateManager.getContext()
-    
+
     // Extract all context paths from the condition
     // e.g., "context.customerWantsCancellation === true" -> ["customerWantsCancellation"]
     const contextPaths = condition.match(/context\.([a-zA-Z0-9_.]+)/g)
-    
+
     if (!contextPaths) {
       return true // No context references, can evaluate
     }
-    
+
     for (const match of contextPaths) {
       const path = match.replace('context.', '')
       const keys = path.split('.')
       let value: any = context
-      
+
       // Navigate through the path to get the value
       for (const key of keys) {
         if (value && typeof value === 'object' && key in value) {
@@ -1077,7 +1080,7 @@ You MUST respond - do not leave this empty.`
           break
         }
       }
-      
+
       // If the value is null or undefined, we can't evaluate the decision yet
       if (value === null || value === undefined) {
         logger.debug(
@@ -1087,7 +1090,7 @@ You MUST respond - do not leave this empty.`
         return false
       }
     }
-    
+
     return true
   }
 
@@ -1110,7 +1113,10 @@ You MUST respond - do not leave this empty.`
    * Reset the agent to start over
    */
   reset(): void {
-    this.stateManager = new ExecutionStateManager(this.sop.startNode, this.userId)
+    this.stateManager = new ExecutionStateManager(
+      this.sop.startNode,
+      this.userId
+    )
   }
 
   /**

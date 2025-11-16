@@ -25,7 +25,7 @@ graph LR
     B --> C[Execute Tools]
     C --> D[LLM<br/>Response Only]
     D --> E[Output]
-    
+
     style B fill:#ffcccc
     style D fill:#e1f5ff
 ```
@@ -48,7 +48,7 @@ graph LR
     E --> G
     F --> H[Output]
     G --> H
-    
+
     style B fill:#e1f5ff
     style C fill:#ffe1e1
 ```
@@ -88,12 +88,12 @@ graph TD
     C --> E[Execution State]
     C --> F[Conversation History]
     C --> G[Language Instructions]
-    
+
     D --> H[Send to LLM<br/>with Available Tools]
     E --> H
     F --> H
     G --> H
-    
+
     H --> I{Process LLM Response}
     I -->|Tool Calls?| J[Execute Tool Calls]
     J --> K[Update Context<br/>with Results]
@@ -103,7 +103,7 @@ graph TD
     M --> O[Clean Response]
     N --> O
     I -->|No Tools| O
-    
+
     O --> P[Remove Thinking Traces<br/>& Metadata]
     P --> Q[Extract Information<br/>from Conversation]
     Q --> R[Update Current Node<br/>Based on Progress]
@@ -111,7 +111,7 @@ graph TD
     S -->|Yes| T[Remove Help Offers]
     S -->|No| U[Return Natural<br/>Language Response]
     T --> U
-    
+
     style H fill:#e1f5ff
     style I fill:#ffe1e1
     style J fill:#e1ffe1
@@ -230,7 +230,7 @@ assistant: {response}
 
 # INSTRUCTIONS
 
-1. **Language Support**: 
+1. **Language Support**:
    - ALWAYS respond in the same language the user is using
    - Detect the user's language from their messages
    - Maintain consistency - if the user speaks Spanish, respond in Spanish; if German, respond in German, etc.
@@ -245,7 +245,7 @@ assistant: {response}
 
 4. **Tool Execution**: When a node specifies a tool, you MUST call that tool with the appropriate parameters. Extract parameters from the context using the toolParams mapping.
 
-5. **Context Management**: 
+5. **Context Management**:
    - Extract information from user messages (e.g., order IDs, decisions)
    - Store tool results in context for use in subsequent nodes
    - Use context values to replace placeholders in message templates

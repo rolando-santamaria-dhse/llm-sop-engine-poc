@@ -34,7 +34,7 @@ describe('SOP Engine LLM Integration Tests', () => {
       modelName: modelName,
       openAIApiKey: apiKey,
       configuration: {
-        baseURL: `${litellmProxyUrl}/v1`,
+        baseURL: litellmProxyUrl,
       },
       temperature: 0.1, // Low temperature for more deterministic responses
     })
