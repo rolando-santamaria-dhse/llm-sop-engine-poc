@@ -16,6 +16,9 @@ import {
   ListToolsRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js'
+import { createLogger } from '../utils/logger.js'
+
+const logger = createLogger('MCPServer')
 
 // Mock order database
 interface Order {
@@ -291,7 +294,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { userId } = args as { userId: string }
 
       // Log the userId for auditing purposes
-      console.error(`[getUserDetails] Fetching details for user ${userId}`)
+      logger.info({ userId }, 'Fetching user details')
 
       const user = users.get(userId)
       if (!user) {
@@ -326,9 +329,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { orderId, userId } = args as { orderId: string; userId: string }
 
       // Log the userId for auditing purposes
-      console.error(
-        `[getOrderStatus] User ${userId} requesting status for order ${orderId}`
-      )
+      logger.info({ userId, orderId }, 'User requesting order status')
 
       const order = orders.get(orderId)
       if (!order) {
@@ -386,9 +387,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       // Log the userId for auditing purposes
-      console.error(
-        `[cancelOrder] User ${userId} cancelling order ${orderId} - Reason: ${reason}`
-      )
+      logger.info({ userId, orderId, reason }, 'User cancelling order')
 
       const order = orders.get(orderId)
       if (!order) {
@@ -482,9 +481,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       // Log the userId for auditing purposes
-      console.error(
-        `[refundOrder] User ${userId} processing refund of $${amount} for order ${orderId}`
-      )
+      logger.info({ userId, orderId, amount }, 'Processing refund')
 
       const order = orders.get(orderId)
       if (!order) {
@@ -619,10 +616,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  console.error('Order Management MCP Server running on stdio')
+  logger.info('Order Management MCP Server running on stdio')
 }
 
 main().catch((error) => {
-  console.error('Fatal error in main():', error)
+  logger.fatal({ error }, 'Fatal error in main()')
   process.exit(1)
 })

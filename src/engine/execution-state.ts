@@ -5,6 +5,9 @@
  */
 
 import { ExecutionState } from '../types/sop.types'
+import { createLogger } from '../utils/logger'
+
+const logger = createLogger('ExecutionState')
 
 export class ExecutionStateManager {
   private state: ExecutionState
@@ -157,7 +160,7 @@ export class ExecutionStateManager {
       const result = new Function(`return ${evaluableCondition}`)()
       return Boolean(result)
     } catch (error) {
-      console.error('Error evaluating condition:', condition, error)
+      logger.error({ condition, error }, 'Error evaluating condition')
       return false
     }
   }

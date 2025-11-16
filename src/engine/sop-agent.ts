@@ -10,6 +10,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { SOP } from '../types/sop.types'
 import { ExecutionStateManager } from './execution-state'
+import { createLogger } from '../utils/logger'
+
+const logger = createLogger('SOPAgent')
 
 export class SOPAgent {
   private sop: SOP
@@ -57,7 +60,10 @@ export class SOPAgent {
       for (const tool of toolsResponse.tools) {
         this.availableTools.set(tool.name, tool)
       }
-      console.log(`Loaded ${this.availableTools.size} tools from MCP server`)
+      logger.info(
+        { toolCount: this.availableTools.size },
+        'Loaded tools from MCP server'
+      )
     }
   }
 
@@ -165,7 +171,7 @@ Now, process the user's message according to the SOP workflow.`
       userId: this.userId,
     }
 
-    console.log(`Executing tool: ${toolName} with params:`, toolParameters)
+    logger.debug({ toolName, params: toolParameters }, 'Executing tool')
 
     const response: any = await this.mcpClient.callTool({
       name: toolName,
@@ -463,8 +469,9 @@ Now, process the user's message according to the SOP workflow.`
             
             // Check if this is a required parameter and if it's missing
             if (contextValue === null || contextValue === undefined) {
-              console.log(
-                `Required parameter '${key}' is missing from context (contextKey: ${contextKey})`
+              logger.warn(
+                { key, contextKey },
+                'Required parameter missing from context'
               )
               hasInvalidParams = true
               break
@@ -479,8 +486,9 @@ Now, process the user's message according to the SOP workflow.`
 
       // Only execute the tool if all required parameters are present
       if (hasInvalidParams) {
-        console.log(
-          `Skipping tool execution for ${currentNode.tool} - required parameters missing. LLM will gather information.`
+        logger.info(
+          { tool: currentNode.tool },
+          'Skipping tool execution - required parameters missing'
         )
         return
       }
@@ -488,7 +496,7 @@ Now, process the user's message according to the SOP workflow.`
       // Execute the tool
       try {
         const toolResult = await this.executeTool(currentNode.tool, params)
-        console.log(`Tool ${currentNode.tool} result:`, toolResult)
+        logger.debug({ tool: currentNode.tool, result: toolResult }, 'Tool execution result')
 
         // Update context with tool result
         if (currentNode.tool === 'getUserDetails') {
@@ -509,12 +517,16 @@ Now, process the user's message according to the SOP workflow.`
           // After executing tool, advance through any subsequent decision or action nodes
           this.advanceAfterToolExecution()
         } else {
-          console.log(
-            `Tool ${currentNode.tool} returned an error. Staying at current node for retry.`
+          logger.warn(
+            { tool: currentNode.tool, error: toolResult.error },
+            'Tool returned an error - staying at current node'
           )
         }
       } catch (error) {
-        console.error(`Error executing tool ${currentNode.tool}:`, error)
+        logger.error(
+          { tool: currentNode.tool, error },
+          'Error executing tool'
+        )
         this.stateManager.error()
         throw error
       }
@@ -557,16 +569,18 @@ Now, process the user's message according to the SOP workflow.`
       if (currentNode.type === 'decision' && currentNode.condition) {
         // Check if any context data referenced in the condition has errors
         if (this.hasErrorsInConditionContext(currentNode.condition)) {
-          console.log(
-            `Decision node ${currentNode.id} cannot be evaluated - context data has errors. Stopping advancement.`
+          logger.debug(
+            { nodeId: currentNode.id },
+            'Decision node cannot be evaluated - context data has errors'
           )
           break
         }
 
         // Check if all required values for the decision are set
         if (!this.canEvaluateDecision(currentNode.condition)) {
-          console.log(
-            `Decision node ${currentNode.id} cannot be evaluated yet - waiting for required context values. Stopping advancement.`
+          logger.debug(
+            { nodeId: currentNode.id },
+            'Decision node cannot be evaluated yet - waiting for required context values'
           )
           break
         }
@@ -629,7 +643,7 @@ Now, process the user's message according to the SOP workflow.`
     try {
       response = await modelWithTools.invoke(messages)
     } catch (error) {
-      console.error('Error calling LLM:', error)
+      logger.error({ error }, 'Error calling LLM')
       return 'I apologize, but I encountered an error processing your request. Please try again.'
     }
 
@@ -648,12 +662,12 @@ Now, process the user's message according to the SOP workflow.`
           if (toolName === 'updateContext') {
             const { key, value } = toolArgs
             this.stateManager.updateContext(key, value)
-            console.log(`Context updated: ${key} = ${JSON.stringify(value)}`)
+            logger.debug({ key, value }, 'Context updated')
             toolResult = { success: true, key, value }
           } else {
             // Execute MCP tool
             toolResult = await this.executeTool(toolName, toolArgs)
-            console.log(`Tool ${toolName} result:`, toolResult)
+            logger.debug({ tool: toolName, result: toolResult }, 'Tool result')
 
             // Update context with tool result based on tool name
             if (toolName === 'getUserDetails') {
@@ -693,8 +707,9 @@ Now, process the user's message according to the SOP workflow.`
 
           // If the response is empty after tool execution, reconnect the flow
           if (!assistantMessage) {
-            console.log(
-              'Empty response after tool execution, reconnecting flow...'
+            logger.warn(
+              { toolName },
+              'Empty response after tool execution - reconnecting flow'
             )
             assistantMessage = await this.reconnectFlow(
               userMessage,
@@ -703,7 +718,7 @@ Now, process the user's message according to the SOP workflow.`
             )
           }
         } catch (error) {
-          console.error(`Error executing tool ${toolName}:`, error)
+          logger.error({ tool: toolName, error }, 'Error executing tool')
           assistantMessage = `I encountered an error while processing your request: ${error instanceof Error ? error.message : String(error)}`
           this.stateManager.error()
         }
@@ -716,7 +731,7 @@ Now, process the user's message according to the SOP workflow.`
 
     // Ensure we always have a response
     if (!assistantMessage) {
-      console.log('Empty response received, generating fallback response...')
+      logger.warn('Empty response received - generating fallback response')
       assistantMessage = await this.generateFallbackResponse(userMessage)
     }
 
@@ -782,7 +797,7 @@ DO NOT call any tools - just provide a text response to the customer.`
         return message
       }
     } catch (error) {
-      console.error('Error in reconnectFlow:', error)
+      logger.error({ error }, 'Error in reconnectFlow')
     }
 
     // Final fallback based on tool type
@@ -816,7 +831,7 @@ You MUST respond - do not leave this empty.`
         return message
       }
     } catch (error) {
-      console.error('Error in generateFallbackResponse:', error)
+      logger.error({ error }, 'Error in generateFallbackResponse')
     }
 
     // Absolute final fallback
@@ -924,8 +939,9 @@ You MUST respond - do not leave this empty.`
       if (currentNode.type === 'decision' && currentNode.condition) {
         // Check if we can evaluate the decision (all required values are set)
         if (!this.canEvaluateDecision(currentNode.condition)) {
-          console.log(
-            `Decision node ${currentNode.id} in updateCurrentNode cannot be evaluated yet - stopping advancement.`
+          logger.debug(
+            { nodeId: currentNode.id },
+            'Decision node in updateCurrentNode cannot be evaluated yet'
           )
           break
         }
@@ -1028,8 +1044,9 @@ You MUST respond - do not leave this empty.`
       
       // If the value is null or undefined, we can't evaluate the decision yet
       if (value === null || value === undefined) {
-        console.log(
-          `Decision condition cannot be evaluated - ${path} is null/undefined`
+        logger.debug(
+          { path },
+          'Decision condition cannot be evaluated - value is null/undefined'
         )
         return false
       }
