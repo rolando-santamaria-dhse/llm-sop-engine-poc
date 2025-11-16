@@ -128,8 +128,74 @@ interface Refund {
 }
 const refunds: Map<string, Refund> = new Map()
 
+// User database
+interface User {
+  userId: string
+  name: string
+  email: string
+}
+
+// In-memory user database
+const users: Map<string, User> = new Map([
+  [
+    'test-user-001',
+    {
+      userId: 'test-user-001',
+      name: 'John Smith',
+      email: 'john.smith@example.com',
+    },
+  ],
+  [
+    'test-user-002',
+    {
+      userId: 'test-user-002',
+      name: 'Jane Doe',
+      email: 'jane.doe@example.com',
+    },
+  ],
+  [
+    'test-user-003',
+    {
+      userId: 'test-user-003',
+      name: 'Bob Wilson',
+      email: 'bob.wilson@example.com',
+    },
+  ],
+  [
+    'test-user-004',
+    {
+      userId: 'test-user-004',
+      name: 'Alice Johnson',
+      email: 'alice.johnson@example.com',
+    },
+  ],
+  [
+    'test-user-005',
+    {
+      userId: 'test-user-005',
+      name: 'Charlie Brown',
+      email: 'charlie.brown@example.com',
+    },
+  ],
+])
+
 // Define the tools
 const tools: Tool[] = [
+  {
+    name: 'getUserDetails',
+    description:
+      'Retrieves user details including name, email, and JWT token for authentication',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        userId: {
+          type: 'string',
+          description: 'The unique identifier for the user',
+        },
+      },
+      required: ['userId'],
+    },
+  },
   {
     name: 'getOrderStatus',
     description:
@@ -221,11 +287,48 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params
 
   try {
+    if (name === 'getUserDetails') {
+      const { userId } = args as { userId: string }
+
+      // Log the userId for auditing purposes
+      console.error(`[getUserDetails] Fetching details for user ${userId}`)
+
+      const user = users.get(userId)
+      if (!user) {
+        // Generate a default user for demo/unknown users
+        const defaultUser: User = {
+          userId: userId,
+          name: 'Guest User',
+          email: `${userId}@example.com`,
+        }
+
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(defaultUser, null, 2),
+            },
+          ],
+        }
+      }
+
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(user, null, 2),
+          },
+        ],
+      }
+    }
+
     if (name === 'getOrderStatus') {
       const { orderId, userId } = args as { orderId: string; userId: string }
-      
+
       // Log the userId for auditing purposes
-      console.error(`[getOrderStatus] User ${userId} requesting status for order ${orderId}`)
+      console.error(
+        `[getOrderStatus] User ${userId} requesting status for order ${orderId}`
+      )
 
       const order = orders.get(orderId)
       if (!order) {
@@ -281,9 +384,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         reason: string
         userId: string
       }
-      
+
       // Log the userId for auditing purposes
-      console.error(`[cancelOrder] User ${userId} cancelling order ${orderId} - Reason: ${reason}`)
+      console.error(
+        `[cancelOrder] User ${userId} cancelling order ${orderId} - Reason: ${reason}`
+      )
 
       const order = orders.get(orderId)
       if (!order) {
@@ -375,9 +480,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         amount: number
         userId: string
       }
-      
+
       // Log the userId for auditing purposes
-      console.error(`[refundOrder] User ${userId} processing refund of $${amount} for order ${orderId}`)
+      console.error(
+        `[refundOrder] User ${userId} processing refund of $${amount} for order ${orderId}`
+      )
 
       const order = orders.get(orderId)
       if (!order) {

@@ -12,16 +12,28 @@ export const OrderDelaySOP: SOP = {
   description:
     'Handle customer inquiries about order status and process cancellations/refunds for late orders',
   version: '1.0.0',
-  startNode: 'greeting',
+  startNode: 'get_user_details',
 
   nodes: {
+    // Fetch user details first
+    get_user_details: {
+      id: 'get_user_details',
+      type: 'action',
+      description: 'Retrieve user details to personalize the greeting',
+      tool: 'getUserDetails',
+      toolParams: {
+        userId: '{context.userId}',
+      },
+      nextNodes: ['greeting'],
+    },
+
     // Initial greeting and order ID collection
     greeting: {
       id: 'greeting',
       type: 'action',
-      description: 'Greet the customer and ask for their order ID',
+      description: 'Greet the customer by name and ask for their order ID',
       messageTemplate:
-        "Hello! I'm here to help you with your order. Could you please provide your order ID?",
+        "Hello {context.userDetails.name}! I'm here to help you with your order. Could you please provide your order ID?",
       nextNodes: ['check_order_status'],
     },
 

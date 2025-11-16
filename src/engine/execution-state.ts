@@ -11,10 +11,12 @@ export class ExecutionStateManager {
 
   constructor(startNodeId: string, userId: string) {
     this.state = {
-      userId,
+      userId: userId,
       currentNodeId: startNodeId,
       visitedNodes: [startNodeId], // Mark start node as visited
-      context: {},
+      context: {
+        userId: userId, // Store userId in context for use in tool params
+      },
       timestamp: new Date(),
       conversationHistory: [],
       status: 'in_progress',

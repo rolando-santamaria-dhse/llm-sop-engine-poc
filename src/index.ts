@@ -48,7 +48,7 @@ async function main() {
     configuration: {
       baseURL: `${litellmProxyUrl}/v1`,
     },
-    temperature: 0.9,
+    temperature: 0.6,
   })
 
   // Initialize SOP Agent with demo userId
@@ -57,7 +57,7 @@ async function main() {
   )
   const demoUserId = 'demo-user-' + Date.now()
   console.log(`👤 Demo User ID: ${demoUserId}`)
-  const agent = new SOPAgent(OrderDelayExtendedSOP, llm, demoUserId)
+  const agent = new SOPAgent(OrderDelaySOP, llm, demoUserId)
 
   // Initialize MCP Server connection
   console.log('🔧 Connecting to MCP Server...')

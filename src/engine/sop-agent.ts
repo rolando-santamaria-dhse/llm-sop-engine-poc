@@ -107,9 +107,13 @@ ${state.conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join('\n
 4. **Tool Execution**: When a node specifies a tool, you MUST call that tool with the appropriate parameters. Extract parameters from the context using the toolParams mapping.
 
 5. **Context Management**: 
-   - Extract information from user messages (e.g., order IDs, decisions)
+   - Extract information from user messages (e.g., order IDs, customer decisions)
    - Store tool results in context for use in subsequent nodes
    - Use context values to replace placeholders in message templates
+   - **CRITICAL for Decision Nodes**: When you need to evaluate a decision condition (like "customerWantsCancellation"), you MUST first analyze the user's intent from their message and update the context accordingly BEFORE the decision node is evaluated
+   - Example: If the user responds "yes" or "cancel it" to a cancellation offer, you should understand their intent to cancel and ensure the context reflects this (e.g., customerWantsCancellation=true)
+   - Example: If the user responds "no" or "I'll wait" to a cancellation offer, you should understand their intent to keep the order and ensure the context reflects this (e.g., customerWantsCancellation=false)
+   - Your natural language understanding should determine intent - do not rely on simple keyword matching
 
 6. **Navigation**:
    - After completing an action node, determine the next node from nextNodes
@@ -181,10 +185,34 @@ Now, process the user's message according to the SOP workflow.`
 
   /**
    * Convert MCP tools to LangChain tool format
+   * Also includes built-in tools like updateContext
    */
   private getLangChainTools() {
     const tools = []
 
+    // Add built-in updateContext tool
+    tools.push({
+      type: 'function' as const,
+      function: {
+        name: 'updateContext',
+        description: 'Update context values based on user intent or extracted information. Use this to set context values like customerWantsCancellation, or any other context data needed for decision nodes.',
+        parameters: {
+          type: 'object',
+          properties: {
+            key: {
+              type: 'string',
+              description: 'The context key to update (e.g., "customerWantsCancellation")',
+            },
+            value: {
+              description: 'The value to set (can be boolean, string, number, or object)',
+            },
+          },
+          required: ['key', 'value'],
+        },
+      },
+    })
+
+    // Add MCP tools
     for (const [name, tool] of this.availableTools) {
       tools.push({
         type: 'function' as const,
@@ -281,7 +309,7 @@ Now, process the user's message according to the SOP workflow.`
   private advanceThroughSimpleNodes(): void {
     const state = this.stateManager.getState()
     let currentNode = this.sop.nodes[state.currentNodeId]
-    let maxIterations = 5 // Safety limit
+    let maxIterations = 10 // Safety limit
     let iterations = 0
 
     while (currentNode && iterations < maxIterations) {
@@ -298,12 +326,18 @@ Now, process the user's message according to the SOP workflow.`
       }
 
       // Only advance if this is a simple action node (no tool, no decision)
-      if (currentNode.type === 'action' && !currentNode.tool) {
-        // Advance to the next node
-        this.stateManager.setCurrentNode(currentNode.nextNodes[0])
-        currentNode = this.sop.nodes[currentNode.nextNodes[0]]
+      // OR if it's an action node with a tool that has already been executed
+      if (currentNode.type === 'action') {
+        if (!currentNode.tool) {
+          // Simple action node without tool - advance
+          this.stateManager.setCurrentNode(currentNode.nextNodes[0])
+          currentNode = this.sop.nodes[currentNode.nextNodes[0]]
+        } else {
+          // Action node with tool - stop here, tool will be executed next
+          break
+        }
       } else {
-        // Stop - we've reached a node that requires action or decision
+        // Decision node or other type - stop
         break
       }
     }
@@ -406,6 +440,153 @@ Now, process the user's message according to the SOP workflow.`
   }
 
   /**
+   * Execute tool at current node if required
+   */
+  private async executeNodeTool(): Promise<void> {
+    const state = this.stateManager.getState()
+    const currentNode = this.sop.nodes[state.currentNodeId]
+
+    if (
+      currentNode?.type === 'action' &&
+      currentNode.tool &&
+      !this.hasToolBeenExecuted(currentNode.tool, state.context)
+    ) {
+      // Extract parameters from tool params, replacing placeholders
+      const params: Record<string, any> = {}
+      let hasInvalidParams = false
+      
+      if (currentNode.toolParams) {
+        for (const [key, value] of Object.entries(currentNode.toolParams)) {
+          if (typeof value === 'string' && value.startsWith('{context.')) {
+            const contextKey = value.slice(9, -1) // Remove {context. and }
+            const contextValue = this.stateManager.getContextValue(contextKey)
+            
+            // Check if this is a required parameter and if it's missing
+            if (contextValue === null || contextValue === undefined) {
+              console.log(
+                `Required parameter '${key}' is missing from context (contextKey: ${contextKey})`
+              )
+              hasInvalidParams = true
+              break
+            }
+            
+            params[key] = contextValue
+          } else {
+            params[key] = value
+          }
+        }
+      }
+
+      // Only execute the tool if all required parameters are present
+      if (hasInvalidParams) {
+        console.log(
+          `Skipping tool execution for ${currentNode.tool} - required parameters missing. LLM will gather information.`
+        )
+        return
+      }
+
+      // Execute the tool
+      try {
+        const toolResult = await this.executeTool(currentNode.tool, params)
+        console.log(`Tool ${currentNode.tool} result:`, toolResult)
+
+        // Update context with tool result
+        if (currentNode.tool === 'getUserDetails') {
+          this.stateManager.updateContext('userDetails', toolResult)
+        } else if (currentNode.tool === 'getOrderStatus') {
+          this.stateManager.updateContext('orderStatus', toolResult)
+          if (toolResult.orderId) {
+            this.stateManager.updateContext('orderId', toolResult.orderId)
+          }
+        } else if (currentNode.tool === 'cancelOrder') {
+          this.stateManager.updateContext('cancelResult', toolResult)
+        } else if (currentNode.tool === 'refundOrder') {
+          this.stateManager.updateContext('refundResult', toolResult)
+        }
+
+        // Only advance if the tool execution was successful (no error in result)
+        if (!toolResult.error) {
+          // After executing tool, advance through any subsequent decision or action nodes
+          this.advanceAfterToolExecution()
+        } else {
+          console.log(
+            `Tool ${currentNode.tool} returned an error. Staying at current node for retry.`
+          )
+        }
+      } catch (error) {
+        console.error(`Error executing tool ${currentNode.tool}:`, error)
+        this.stateManager.error()
+        throw error
+      }
+    }
+  }
+
+  /**
+   * Advance through decision and action nodes after tool execution
+   */
+  private advanceAfterToolExecution(): void {
+    const state = this.stateManager.getState()
+    let currentNode = this.sop.nodes[state.currentNodeId]
+    let maxIterations = 10
+    let iterations = 0
+
+    while (currentNode && iterations < maxIterations) {
+      iterations++
+
+      if (!currentNode.nextNodes || currentNode.nextNodes.length === 0) {
+        break
+      }
+
+      // Stop at end nodes
+      if (currentNode.type === 'end') {
+        break
+      }
+
+      // For action nodes with tools that have been executed, advance to next node
+      if (
+        currentNode.type === 'action' &&
+        currentNode.tool &&
+        this.hasToolBeenExecuted(currentNode.tool, state.context)
+      ) {
+        this.stateManager.setCurrentNode(currentNode.nextNodes[0])
+        currentNode = this.sop.nodes[currentNode.nextNodes[0]]
+        continue
+      }
+
+      // For decision nodes, check if the data needed is valid before evaluating
+      if (currentNode.type === 'decision' && currentNode.condition) {
+        // Check if any context data referenced in the condition has errors
+        if (this.hasErrorsInConditionContext(currentNode.condition)) {
+          console.log(
+            `Decision node ${currentNode.id} cannot be evaluated - context data has errors. Stopping advancement.`
+          )
+          break
+        }
+
+        const conditionMet = this.stateManager.evaluateCondition(
+          currentNode.condition
+        )
+        const nextNodeId = conditionMet
+          ? currentNode.nextNodes[0]
+          : currentNode.nextNodes[1]
+        this.stateManager.setCurrentNode(nextNodeId)
+        currentNode = this.sop.nodes[nextNodeId]
+        continue
+      }
+
+      // For simple action nodes without tools, advance
+      if (currentNode.type === 'action' && !currentNode.tool) {
+        this.stateManager.setCurrentNode(currentNode.nextNodes[0])
+        currentNode = this.sop.nodes[currentNode.nextNodes[0]]
+        continue
+      }
+
+      // Otherwise stop - we've reached a node that needs LLM processing
+      break
+    }
+  }
+
+  /**
    * Process a user message using LLM-driven navigation
    */
   async processMessage(userMessage: string): Promise<string> {
@@ -414,6 +595,9 @@ Now, process the user's message according to the SOP workflow.`
 
     // Advance through simple action nodes (greeting, etc.) before building prompt
     this.advanceThroughSimpleNodes()
+
+    // Execute tool at current node if required
+    await this.executeNodeTool()
 
     // Build system prompt with SOP and state
     const systemPrompt = this.buildSystemPrompt()
@@ -450,21 +634,33 @@ Now, process the user's message according to the SOP workflow.`
         const toolArgs = JSON.parse(toolCall.function.arguments)
 
         try {
-          // Execute the tool via MCP
-          const toolResult = await this.executeTool(toolName, toolArgs)
-          console.log(`Tool ${toolName} result:`, toolResult)
+          let toolResult: any
 
-          // Update context with tool result based on tool name
-          if (toolName === 'getOrderStatus') {
-            this.stateManager.updateContext('orderStatus', toolResult)
-            // Also extract specific fields for easier access
-            if (toolResult.orderId) {
-              this.stateManager.updateContext('orderId', toolResult.orderId)
+          // Handle built-in updateContext tool
+          if (toolName === 'updateContext') {
+            const { key, value } = toolArgs
+            this.stateManager.updateContext(key, value)
+            console.log(`Context updated: ${key} = ${JSON.stringify(value)}`)
+            toolResult = { success: true, key, value }
+          } else {
+            // Execute MCP tool
+            toolResult = await this.executeTool(toolName, toolArgs)
+            console.log(`Tool ${toolName} result:`, toolResult)
+
+            // Update context with tool result based on tool name
+            if (toolName === 'getUserDetails') {
+              this.stateManager.updateContext('userDetails', toolResult)
+            } else if (toolName === 'getOrderStatus') {
+              this.stateManager.updateContext('orderStatus', toolResult)
+              // Also extract specific fields for easier access
+              if (toolResult.orderId) {
+                this.stateManager.updateContext('orderId', toolResult.orderId)
+              }
+            } else if (toolName === 'cancelOrder') {
+              this.stateManager.updateContext('cancelResult', toolResult)
+            } else if (toolName === 'refundOrder') {
+              this.stateManager.updateContext('refundResult', toolResult)
             }
-          } else if (toolName === 'cancelOrder') {
-            this.stateManager.updateContext('cancelResult', toolResult)
-          } else if (toolName === 'refundOrder') {
-            this.stateManager.updateContext('refundResult', toolResult)
           }
 
           // Now call LLM again with tool result to get natural response
@@ -635,6 +831,8 @@ You MUST respond - do not leave this empty.`
 
   /**
    * Extract context information from messages
+   * Note: Intent detection (e.g., customerWantsCancellation) is handled by the LLM
+   * through tool calls, not through hard-coded pattern matching
    */
   private extractContextFromMessages(
     userMessage: string,
@@ -648,60 +846,8 @@ You MUST respond - do not leave this empty.`
       }
     }
 
-    // Detect customer's intent for cancellation
-    const lowerUser = userMessage.toLowerCase()
-    const state = this.stateManager.getState()
-
-    // Check if we're in a decision-making context (agent has offered cancellation)
-    if (
-      state.currentNodeId === 'customer_decision' ||
-      this.stateManager.getContextValue('offeringCancellation')
-    ) {
-      // Negative responses indicating desire to keep the order - CHECK FIRST
-      const wantsToKeep =
-        lowerUser.startsWith('no') ||
-        lowerUser.includes(' no,') ||
-        lowerUser.includes(' no ') ||
-        lowerUser.includes('keep') ||
-        lowerUser.includes('wait') ||
-        lowerUser.includes("don't cancel") ||
-        lowerUser.includes("i'll wait") ||
-        lowerUser.includes('i will wait') ||
-        lowerUser.includes('no thanks') ||
-        lowerUser.includes('not cancel')
-
-      // Positive responses indicating desire to cancel
-      const wantsToCancel =
-        ((lowerUser.startsWith('yes') ||
-          lowerUser.includes(' yes,') ||
-          lowerUser.includes(' yes ')) &&
-          !lowerUser.includes('no')) ||
-        ((lowerUser.includes('cancel') || lowerUser.includes('refund')) &&
-          !lowerUser.includes('no') &&
-          !lowerUser.includes("don't"))
-
-      if (wantsToKeep) {
-        this.stateManager.updateContext('customerWantsCancellation', false)
-        console.log(
-          'Customer declined cancellation - customerWantsCancellation set to false'
-        )
-      } else if (wantsToCancel) {
-        this.stateManager.updateContext('customerWantsCancellation', true)
-        console.log(
-          'Customer accepted cancellation - customerWantsCancellation set to true'
-        )
-      }
-    }
-
-    // Track if we're offering cancellation
-    const lowerAssistant = assistantMessage.toLowerCase()
-    if (
-      (lowerAssistant.includes('cancel') ||
-        lowerAssistant.includes('refund')) &&
-      lowerAssistant.includes('?')
-    ) {
-      this.stateManager.updateContext('offeringCancellation', true)
-    }
+    // Note: Customer intent detection is now handled by the LLM
+    // The LLM should use tool calls or direct context updates based on the conversation
   }
 
   /**
@@ -788,19 +934,49 @@ You MUST respond - do not leave this empty.`
   }
 
   /**
-   * Check if a tool has been executed based on context
+   * Check if a tool has been executed SUCCESSFULLY based on context
+   * Returns false if the tool result contains an error
    */
   private hasToolBeenExecuted(
     toolName: string,
     context: Record<string, any>
   ): boolean {
-    if (toolName === 'getOrderStatus') {
-      return !!context.orderStatus
+    if (toolName === 'getUserDetails') {
+      return !!context.userDetails && !context.userDetails.error
+    } else if (toolName === 'getOrderStatus') {
+      return !!context.orderStatus && !context.orderStatus.error
     } else if (toolName === 'cancelOrder') {
-      return !!context.cancelResult
+      return !!context.cancelResult && !context.cancelResult.error
     } else if (toolName === 'refundOrder') {
-      return !!context.refundResult
+      return !!context.refundResult && !context.refundResult.error
     }
+    return false
+  }
+
+  /**
+   * Check if any context data referenced in a condition has errors
+   */
+  private hasErrorsInConditionContext(condition: string): boolean {
+    const context = this.stateManager.getContext()
+    
+    // Extract context variable names from the condition
+    // e.g., "context.orderStatus.minutesLate > 20" -> ["orderStatus"]
+    const contextVarMatches = condition.match(/context\.([a-zA-Z0-9_]+)/g)
+    
+    if (!contextVarMatches) {
+      return false
+    }
+    
+    for (const match of contextVarMatches) {
+      const varName = match.replace('context.', '')
+      const value = context[varName]
+      
+      // Check if the value exists and has an error property
+      if (value && typeof value === 'object' && value.error) {
+        return true
+      }
+    }
+    
     return false
   }
 
