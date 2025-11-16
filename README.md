@@ -11,51 +11,40 @@ This project showcases how modern LLMs can navigate workflow decision trees auto
 - Using MCP (Model Context Protocol) tools for effective execution
 - Maintaining natural conversation flow
 
-## Use Case: Delivery Hero Customer Support
-
-The demo implements a customer support SOP that allows customers to:
-
-- Check order status
-- Cancel orders that are late by more than 20 minutes
-- Receive automatic refunds for cancelled orders
-
 ## Architecture
 
 ### LLM-Driven Approach
 
 This POC uses an **LLM-driven architecture** where Claude Sonnet 4.5 receives the complete SOP definition and execution state on every interaction, and makes all navigation and tool-calling decisions autonomously.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        User Input                            │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      SOP Agent                               │
-│                                                              │
-│  1. Builds system prompt with:                              │
-│     • Complete SOP JSON definition                          │
-│     • Current execution state (node, context, history)      │
-│                                                              │
-│  2. Sends to LLM (Claude Sonnet 4.5)                        │
-│                                                              │
-│  3. LLM decides:                                            │
-│     • Which tools to call (based on SOP nodes)              │
-│     • How to respond naturally                              │
-│     • What the next node should be                          │
-│                                                              │
-│  4. Executes tool calls via MCP                             │
-│                                                              │
-│  5. Updates execution state                                 │
-│                                                              │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    MCP Server Tools                          │
-│  • getOrderStatus    • cancelOrder    • refundOrder         │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A[User Input] --> B[SOP Agent]
+    B --> C{Build System Prompt}
+    C --> D[Complete SOP JSON]
+    C --> E[Current Execution State]
+    C --> F[Conversation History]
+    D --> G[Send to LLM<br/>Claude Sonnet 4.5]
+    E --> G
+    F --> G
+    G --> H{LLM Decides}
+    H --> I[Which Tools to Call]
+    H --> J[How to Respond]
+    H --> K[Next Node]
+    I --> L[Execute Tools via MCP]
+    L --> M[Update Execution State]
+    J --> N[Clean Response]
+    K --> M
+    M --> O[Natural Language Response]
+    N --> O
+    O --> P[User]
+
+    L -.->|Tool Calls| Q[MCP Server Tools]
+    Q -.->|Results| L
+
+    style G fill:#e1f5ff
+    style H fill:#ffe1e1
+    style Q fill:#e1ffe1
 ```
 
 ### Key Innovation
@@ -66,26 +55,6 @@ This POC uses an **LLM-driven architecture** where Claude Sonnet 4.5 receives th
 - Current execution state
 - Available tools
 - Natural language instructions
-
-## Project Structure
-
-```
-.
-├── src/
-│   ├── index.ts                    # Main entry point
-│   ├── types/
-│   │   └── sop.types.ts           # Type definitions
-│   ├── sops/
-│   │   └── customer-support.sop.ts # SOP definition
-│   ├── engine/
-│   │   ├── execution-state.ts     # State management
-│   │   ├── sop-navigator.ts       # Navigation logic
-│   │   └── sop-agent.ts           # Main agent
-│   └── mcp-server/
-│       └── index.ts               # MCP server with tools
-├── plan.md                        # Project requirements
-└── package.json
-```
 
 ## Prerequisites
 
@@ -206,22 +175,38 @@ Once the demo starts, try these example scenarios:
 
 ## SOP Decision Tree
 
-The customer support SOP follows this flow:
+The Order Delay SOP follows this flow:
 
-```
-START
-  ↓
-GREET_CUSTOMER
-  ↓
-GET_ORDER_STATUS (tool: getOrderStatus)
-  ↓
-CHECK_DELAY (decision)
-  ├─ Late (>20 min) → INFORM_DELAY → OFFER_CANCELLATION
-  │                                      ↓
-  │                                   CUSTOMER_DECISION
-  │                                      ├─ Yes → CANCEL_ORDER → PROCESS_REFUND → END
-  │                                      └─ No → APOLOGIZE → END
-  └─ On Time → INFORM_STATUS → END
+```mermaid
+graph TD
+    START([START]) --> GREET[Greet Customer]
+    GREET --> GET_STATUS[Get Order Status<br/>Tool: getOrderStatus]
+    GET_STATUS --> CHECK_DELAY{Check Delay<br/>minutesLate > 20?}
+
+    CHECK_DELAY -->|Yes - Late| INFORM_DELAY[Inform Customer<br/>About Delay]
+    CHECK_DELAY -->|No - On Time| INFORM_STATUS[Inform Order Status]
+
+    INFORM_DELAY --> OFFER_CANCEL[Offer Cancellation]
+    OFFER_CANCEL --> CUSTOMER_DECISION{Customer Decision}
+
+    CUSTOMER_DECISION -->|Yes - Cancel| CANCEL_ORDER[Cancel Order<br/>Tool: cancelOrder]
+    CUSTOMER_DECISION -->|No - Keep| APOLOGIZE[Apologize & Continue]
+
+    CANCEL_ORDER --> PROCESS_REFUND[Process Refund<br/>Tool: refundOrder]
+    PROCESS_REFUND --> END_CANCEL([END - Refunded])
+
+    APOLOGIZE --> END_KEEP([END - Order Continues])
+    INFORM_STATUS --> END_STATUS([END - Status Provided])
+
+    style START fill:#90EE90
+    style CHECK_DELAY fill:#FFE4B5
+    style CUSTOMER_DECISION fill:#FFE4B5
+    style END_CANCEL fill:#FFB6C1
+    style END_KEEP fill:#FFB6C1
+    style END_STATUS fill:#FFB6C1
+    style GET_STATUS fill:#E1F5FF
+    style CANCEL_ORDER fill:#E1F5FF
+    style PROCESS_REFUND fill:#E1F5FF
 ```
 
 ## Key Features
