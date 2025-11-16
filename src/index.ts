@@ -19,71 +19,73 @@ import { SOPAgent } from './engine/sop-agent'
 import { OrderDelaySOP } from './sops/order-delay.sop'
 import { OrderDelayExtendedSOP } from './sops/order-delay-extended.sop'
 import * as path from 'path'
+import { createLogger } from './utils/logger'
+
+const logger = createLogger('Main')
 
 async function main() {
-  console.log('='.repeat(80))
-  console.log('SOP Engine - LLM Proof of Concept')
-  console.log('='.repeat(80))
-  console.log(
+  logger.info('='.repeat(80))
+  logger.info('SOP Engine - LLM Proof of Concept')
+  logger.info('='.repeat(80))
+  logger.info(
     '\nThis demo showcases Claude Sonnet 4.5 executing a Standard Operating'
   )
-  console.log('Procedure (SOP) without complex workflow frameworks.\n')
-  console.log('Use Case: Delivery Hero Customer Support')
-  console.log('- Check order status')
-  console.log('- Cancel late orders (>20 minutes)')
-  console.log('- Process refunds')
-  console.log('='.repeat(80))
+  logger.info('Procedure (SOP) without complex workflow frameworks.\n')
+  logger.info('Use Case: Delivery Hero Customer Support')
+  logger.info('- Check order status')
+  logger.info('- Cancel late orders (>20 minutes)')
+  logger.info('- Process refunds')
+  logger.info('='.repeat(80))
 
   // Initialize LLM (Claude Sonnet 4.5 via LiteLLM or direct Anthropic)
-  const litellmProxyUrl =
-    process.env.LITELLM_PROXY_URL || 'http://localhost:4000'
-  const modelName = process.env.MODEL_NAME || 'claude-sonnet-4'
+  const litellmProxyUrl = process.env.LITELLM_PROXY_URL
+  const modelName = process.env.MODEL_NAME
 
-  console.log(`\n🤖 Initializing LLM: ${modelName}`)
-  console.log(`📡 LiteLLM Proxy: ${litellmProxyUrl}`)
+  logger.info(`\n🤖 Initializing LLM: ${modelName}`)
+  logger.info(`📡 LiteLLM Proxy: ${litellmProxyUrl}`)
 
   const llm = new ChatOpenAI({
     modelName: modelName,
-    openAIApiKey: process.env.OPENAI_API_KEY || 'dummy-key',
+    openAIApiKey: process.env.OPENAI_API_KEY,
     configuration: {
-      baseURL: `${litellmProxyUrl}/v1`,
+      baseURL: `${litellmProxyUrl}`,
     },
     temperature: 0.7,
   })
 
   // Initialize SOP Agent with demo userId
-  console.log(
+  logger.info(
     '\n📋 Loading SOP: Customer Support - Order Status & Cancellation'
   )
   const demoUserId = 'demo-user-' + Date.now()
-  console.log(`👤 Demo User ID: ${demoUserId}`)
+  logger.info({ userId: demoUserId }, 'Demo User ID')
   const agent = new SOPAgent(OrderDelaySOP, llm, demoUserId)
 
   // Initialize MCP Server connection
-  console.log('🔧 Connecting to MCP Server...')
+  logger.info('🔧 Connecting to MCP Server...')
   try {
     const mcpServerPath = path.join(__dirname, 'mcp-server', 'index.js')
     await agent.initializeMCP('node', [mcpServerPath])
-    console.log('✅ MCP Server connected successfully')
+    logger.info('✅ MCP Server connected successfully')
   } catch (error) {
-    console.error('❌ Failed to connect to MCP Server:', error)
-    console.log('\nPlease ensure the MCP server is built:')
-    console.log('  npm run build')
+    logger.error({ error }, '❌ Failed to connect to MCP Server')
+    logger.info('\nPlease ensure the MCP server is built:')
+    logger.info('  npm run build')
     process.exit(1)
   }
 
-  console.log('\n' + '='.repeat(80))
-  console.log(
+  logger.info('\n' + '='.repeat(80))
+  logger.info(
     '🎯 Agent Ready! You can now interact with the customer support agent.'
   )
-  console.log('='.repeat(80))
-  console.log('\nExample scenarios to try:')
-  console.log(
+  logger.info('='.repeat(80))
+  logger.info('\nExample scenarios to try:')
+  logger.info(
     '1. "Hi, where is my order #12345?" (Late order - will offer cancellation)'
   )
-  console.log('2. "Check status of order #67890" (On-time order)')
-  console.log('3. "What\'s the status of #11111?" (Preparing order)')
-  console.log('\nType "quit" or "exit" to end the conversation.\n')
+  logger.info('2. "Check status of order #67890" (On-time order)')
+  logger.info('3. "What\'s the status of #11111?" (Preparing order)')
+  logger.info('\nType "quit" or "exit" to end the conversation.\n')
 
   // Create readline interface for interactive conversation
   const rl = readline.createInterface({
@@ -109,7 +111,7 @@ async function main() {
         userInput.toLowerCase().trim() === 'quit' ||
         userInput.toLowerCase().trim() === 'exit'
       ) {
-        console.log('\n👋 Thank you for using the SOP Engine demo!')
+        logger.info('\n👋 Thank you for using the SOP Engine demo!')
         conversing = false
         break
       }
@@ -120,36 +122,38 @@ async function main() {
       }
 
       // Process the message through the SOP agent
-      console.log('\n🤖 Agent: Processing...')
+      logger.info('\n🤖 Agent: Processing...')
       const response = await agent.processMessage(userInput)
-      console.log(`🤖 Agent: ${response}`)
+      logger.info(`🤖 Agent: ${response}`)
 
       // Check if conversation is complete
       if (agent.isComplete()) {
-        console.log('\n✅ Conversation completed!')
-        console.log('\n' + '='.repeat(80))
-        console.log('Execution Summary:')
-        console.log('='.repeat(80))
+        logger.info('\n✅ Conversation completed!')
+        logger.info('\n' + '='.repeat(80))
+        logger.info('Execution Summary:')
+        logger.info('='.repeat(80))
 
         const executionState = agent.getExecutionState()
-        console.log(`\n📊 Status: ${executionState.status}`)
-        console.log(
-          `🔄 Nodes Visited: ${executionState.visitedNodes.join(' → ')}`
+        logger.info({ status: executionState.status }, '📊 Status')
+        logger.info(
+          { nodes: executionState.visitedNodes.join(' → ') },
+          '🔄 Nodes Visited'
         )
-        console.log(
-          `💬 Messages Exchanged: ${executionState.conversationHistory.length}`
+        logger.info(
+          { count: executionState.conversationHistory.length },
+          '💬 Messages Exchanged'
         )
 
         if (Object.keys(executionState.context).length > 0) {
-          console.log('\n📝 Context Data:')
-          console.log(JSON.stringify(executionState.context, null, 2))
+          logger.info('\n📝 Context Data:')
+          logger.info(executionState.context)
         }
 
         conversing = false
       }
     } catch (error) {
-      console.error('\n❌ Error:', error)
-      console.log('The conversation will continue...\n')
+      logger.error({ error }, '\n❌ Error')
+      logger.info('The conversation will continue...\n')
     }
   }
 
@@ -157,24 +161,24 @@ async function main() {
   rl.close()
   await agent.close()
 
-  console.log('\n' + '='.repeat(80))
-  console.log('Demo Complete')
-  console.log('='.repeat(80))
-  console.log('\n💡 Key Takeaways:')
-  console.log('   ✓ LLM navigated the SOP decision tree autonomously')
-  console.log('   ✓ Tools were called appropriately based on SOP nodes')
-  console.log('   ✓ Execution state tracked progress accurately')
-  console.log('   ✓ Natural conversation flow maintained throughout')
-  console.log(
+  logger.info('\n' + '='.repeat(80))
+  logger.info('Demo Complete')
+  logger.info('='.repeat(80))
+  logger.info('\n💡 Key Takeaways:')
+  logger.info('   ✓ LLM navigated the SOP decision tree autonomously')
+  logger.info('   ✓ Tools were called appropriately based on SOP nodes')
+  logger.info('   ✓ Execution state tracked progress accurately')
+  logger.info('   ✓ Natural conversation flow maintained throughout')
+  logger.info(
     '\n🎉 This demonstrates that modern LLMs can execute complex workflows'
   )
-  console.log('   without heavy orchestration frameworks!\n')
+  logger.info('   without heavy orchestration frameworks!\n')
 }
 
 // Run if executed directly
 if (require.main === module) {
   main().catch((error) => {
-    console.error('Fatal error:', error)
+    logger.error({ error }, 'Fatal error')
     process.exit(1)
   })
 }
