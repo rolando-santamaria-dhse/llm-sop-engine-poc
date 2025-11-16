@@ -19,8 +19,15 @@ Instead of programmatically navigating through workflow nodes, we pass the compl
 
 ### Traditional Approach (Code-Driven)
 
-```
-User Input → Navigator (Code) → Execute Tools → LLM (Response Only)
+```mermaid
+graph LR
+    A[User Input] --> B[Navigator<br/>Hard-coded Logic]
+    B --> C[Execute Tools]
+    C --> D[LLM<br/>Response Only]
+    D --> E[Output]
+    
+    style B fill:#ffcccc
+    style D fill:#e1f5ff
 ```
 
 - Hard-coded decision logic
@@ -30,8 +37,20 @@ User Input → Navigator (Code) → Execute Tools → LLM (Response Only)
 
 ### LLM-Driven Approach (This POC)
 
-```
-User Input → LLM (Receives SOP + State) → Decides Tools & Navigation → Execute
+```mermaid
+graph LR
+    A[User Input] --> B[LLM<br/>Receives SOP + State]
+    B --> C{Decides}
+    C --> D[Tools]
+    C --> E[Navigation]
+    C --> F[Response]
+    D --> G[Execute]
+    E --> G
+    F --> H[Output]
+    G --> H
+    
+    style B fill:#e1f5ff
+    style C fill:#ffe1e1
 ```
 
 - LLM interprets SOP structure
@@ -61,25 +80,42 @@ User Input → LLM (Receives SOP + State) → Decides Tools & Navigation → Exe
 
 **Flow**:
 
-```typescript
-1. Receive user message
-2. Advance through simple action nodes automatically
-3. Build system prompt with:
-   - Complete SOP JSON
-   - Current execution state
-   - Conversation history
-   - Language support instructions
-4. Send to LLM with available tools
-5. Process LLM response:
-   - Execute any tool calls
-   - Update context with results
-   - Generate follow-up response if needed
-   - Handle empty responses with fallback mechanisms
-6. Clean response (remove thinking traces, metadata)
-7. Extract information from conversation
-8. Update current node based on progress
-9. Remove help offers if transitioning to end
-10. Return natural language response
+```mermaid
+graph TD
+    A[Receive User Message] --> B[Advance Through<br/>Simple Action Nodes]
+    B --> C[Build System Prompt]
+    C --> D[Complete SOP JSON]
+    C --> E[Execution State]
+    C --> F[Conversation History]
+    C --> G[Language Instructions]
+    
+    D --> H[Send to LLM<br/>with Available Tools]
+    E --> H
+    F --> H
+    G --> H
+    
+    H --> I{Process LLM Response}
+    I -->|Tool Calls?| J[Execute Tool Calls]
+    J --> K[Update Context<br/>with Results]
+    K --> L{Generate Follow-up}
+    L -->|Needed| M[Get Follow-up Response]
+    L -->|Empty?| N[Use Fallback Mechanism]
+    M --> O[Clean Response]
+    N --> O
+    I -->|No Tools| O
+    
+    O --> P[Remove Thinking Traces<br/>& Metadata]
+    P --> Q[Extract Information<br/>from Conversation]
+    Q --> R[Update Current Node<br/>Based on Progress]
+    R --> S{Transitioning to End?}
+    S -->|Yes| T[Remove Help Offers]
+    S -->|No| U[Return Natural<br/>Language Response]
+    T --> U
+    
+    style H fill:#e1f5ff
+    style I fill:#ffe1e1
+    style J fill:#e1ffe1
+    style O fill:#fff4e1
 ```
 
 ### 2. ExecutionStateManager
@@ -153,8 +189,26 @@ interface SOPNode {
 On every user interaction, the LLM receives:
 
 ```
+You are a customer support AI agent following a Standard Operating Procedure (SOP).
+
 # YOUR ROLE
-You are a customer support AI agent following an SOP.
+You must follow the SOP workflow precisely while maintaining natural conversation with the customer.
+
+# SOP DEFINITION
+${JSON.stringify(this.sop, null, 2)}
+
+# CURRENT EXECUTION STATE
+- Current Node: ${state.currentNodeId}
+- Node Type: ${currentNode?.type}
+- Node Description: ${currentNode?.description}
+- Visited Nodes: ${JSON.stringify(state.visitedNodes)}
+- Status: ${state.status}
+
+# CURRENT CONTEXT
+${JSON.stringify(state.context, null, 2)}
+
+# CONVERSATION HISTORY
+${state.conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join('\n')}
 
 # SOP DEFINITION
 {Complete JSON structure of the SOP}
@@ -175,117 +229,57 @@ assistant: {response}
 ...
 
 # INSTRUCTIONS
+
 1. **Language Support**: 
    - ALWAYS respond in the same language the user is using
-   - Detect user's language from their messages
+   - Detect the user's language from their messages
+   - Maintain consistency - if the user speaks Spanish, respond in Spanish; if German, respond in German, etc.
    - Support ALL languages naturally
 
-2. **Follow the SOP Flow**: You are at node "{currentNodeId}"
-   - Based on node type and SOP definition, determine next action
+2. **CRITICAL: Follow the SOP Flow**: You are currently at node "${state.currentNodeId}". Based on the node type and the SOP definition, determine what action to take next and guide the user accordingly.
 
 3. **Node Types**:
-   - action: Execute tool if specified, use messageTemplate
-   - decision: Evaluate condition, choose next node
-   - end: Complete the conversation
+   - **action**: Perform the described action. If a tool is specified, use it. If a messageTemplate exists, respond to the user with that message (with placeholders replaced from context).
+   - **decision**: Evaluate the condition based on the current context. Decide which path to take.
+   - **end**: The workflow is complete. Provide the final message.
 
-4. **Tool Execution**: When node specifies a tool, MUST call it
+4. **Tool Execution**: When a node specifies a tool, you MUST call that tool with the appropriate parameters. Extract parameters from the context using the toolParams mapping.
 
 5. **Context Management**: 
-   - Extract information from user messages
-   - Store tool results for subsequent nodes
-   - Replace placeholders in templates
+   - Extract information from user messages (e.g., order IDs, decisions)
+   - Store tool results in context for use in subsequent nodes
+   - Use context values to replace placeholders in message templates
 
 6. **Navigation**:
-   - After action node, determine next node from nextNodes
-   - For decision nodes, evaluate condition and choose path
-   - **CRITICAL**: Auto-transition to end nodes WITHOUT asking for more help
+   - After completing an action node, determine the next node from nextNodes
+   - For decision nodes, evaluate the condition and choose the appropriate next node
+   - Update your understanding of the current node as you progress
+   - **CRITICAL**: If the current node's next node is an "end" type node, you MUST automatically transition to it WITHOUT asking if the user needs more help
 
 7. **End Node Handling**:
-   - When next node is "end" type, DO NOT ask "anything else?"
-   - Conclude conversation gracefully
-   - Remove additional help prompts
+   - When the next node after the current action is an "end" type node, DO NOT ask "Is there anything else I can help you with?"
+   - Instead, provide your response and then immediately transition to the end node
+   - Remove any "can I help you with anything else?" type questions from your response when approaching an end node
+   - The conversation should conclude naturally without prompting for additional interactions
 
-8. **Natural Conversation**: Maintain helpful tone in user's language
+8. **Natural Conversation**: While following the SOP strictly, maintain a natural, helpful tone in the user's language.
 
-9. **Response Format**: Address user naturally, call tools, extract context
+9. **Response Format**: Your response should:
+   - Address the user naturally in their language
+   - Call tools when required by the current node
+   - Extract any needed information from the user's message into context
+   - If moving to an end node next, conclude the conversation gracefully without offering additional help
+   - **CRITICAL**: NEVER include thinking, internal processing, workflow navigation, or meta-commentary in your response
+   - Respond ONLY with the customer-facing message - no explanations of what you're doing internally
+   - Do NOT use phrases like "Thinking:", "<thinking>", "Based on the SOP workflow", "Moving to node", etc.
+   - Your response should be clean, natural conversation ONLY
 
 # AVAILABLE TOOLS
-- getOrderStatus: Retrieves order status
-- cancelOrder: Cancels an order
-- refundOrder: Processes refund
-```
+${Array.from(this.availableTools.values())
+  .map((tool) => `- ${tool.name}: ${tool.description}`)
+  .join('\n')}
 
-## Execution Flow
-
-### Example: Late Order Cancellation
-
-**User Message**: "Hi, where is my order #12345?"
-
-**Step 1: Build Context**
-
-```typescript
-{
-  currentNodeId: "start",
-  context: {},
-  conversationHistory: []
-}
-```
-
-**Step 2: LLM Receives SOP**
-
-```json
-{
-  "nodes": {
-    "start": {
-      "type": "action",
-      "tool": "getOrderStatus",
-      "nextNodes": ["check_delay"]
-    },
-    "check_delay": {
-      "type": "decision",
-      "condition": "context.minutesLate > 20"
-    }
-    // ... more nodes
-  }
-}
-```
-
-**Step 3: LLM Decides**
-
-- "I'm at the start node"
-- "This node requires calling getOrderStatus tool"
-- "I need to extract orderId from user message: 12345"
-- "Call getOrderStatus with orderId: 12345"
-
-**Step 4: Tool Execution**
-
-```typescript
-executeTool('getOrderStatus', { orderId: '12345' })
-// Returns: { orderId: '12345', minutesLate: 25, ... }
-```
-
-**Step 5: LLM Responds**
-
-- Receives tool result
-- Updates context: { orderId: '12345', minutesLate: 25 }
-- Moves to next node: "check_delay"
-- Evaluates condition: 25 > 20 = true
-- Follows "late" path to "offer_cancellation"
-- Generates natural response:
-  "I see your order #12345 is running 25 minutes late. Would you like to cancel?"
-
-**Step 6: Update State**
-
-```typescript
-{
-  currentNodeId: "offer_cancellation",
-  visitedNodes: ["start", "check_delay", "inform_delay", "offer_cancellation"],
-  context: {
-    orderId: "12345",
-    minutesLate: 25,
-    orderStatus: { /* full order data */ }
-  }
-}
+Now, process the user's message according to the SOP workflow.`
 ```
 
 ## Key Benefits
@@ -298,10 +292,8 @@ executeTool('getOrderStatus', { orderId: '12345' })
 
 ### 2. Simplified Codebase
 
-- Agent: ~600 lines (with robust error handling)
-- State Manager: ~150 lines
-- Navigator: ~150 lines
 - No complex orchestration framework
+- Native LLM tools support via MCP Server
 
 ### 3. Natural Conversation
 
@@ -370,9 +362,9 @@ toolParams: {
 
 ```typescript
 // LLM raw response may include internal reasoning
-Raw: "**Thinking:** I should check the order. \n\nYour order is delayed."
+Raw: '**Thinking:** I should check the order. \n\nYour order is delayed.'
 // cleanResponse() removes metadata
-Cleaned: "Your order is delayed."
+Cleaned: 'Your order is delayed.'
 ```
 
 ### 6. Auto-Navigation
@@ -433,7 +425,6 @@ if (isTransitioningToEnd()) {
    - Metrics collection (response times, success rates)
 
 2. **Robustness Improvements**:
-   - More sophisticated intent detection (possibly using NLP)
    - Explicit node transition instructions from LLM
    - Timeout handling for long-running tool executions
    - Rate limiting and quota management
@@ -450,61 +441,6 @@ if (isTransitioningToEnd()) {
    - Audit logging for compliance
    - Rate limiting to prevent abuse
 
-## Comparison with LangGraph
-
-| Aspect              | LangGraph                         | This POC                      |
-| ------------------- | --------------------------------- | ----------------------------- |
-| Workflow Definition | Python code with graphs           | JSON decision tree            |
-| Navigation Logic    | Framework-controlled              | LLM-controlled                |
-| Complexity          | High (learning curve)             | Low (simple classes)          |
-| Flexibility         | Limited by framework              | High (LLM interprets)         |
-| Code Size           | 500+ lines typical                | ~900 lines total              |
-| Dependencies        | Many (langchain, langgraph, etc.) | Minimal (langchain + MCP)     |
-| Error Handling      | Manual implementation             | Built-in fallback mechanisms  |
-| Multi-language      | Requires explicit setup           | Native LLM capability         |
-| Response Quality    | Depends on prompts                | Auto-cleaned, user-focused    |
-| Auto-navigation     | Manual state transitions          | Automatic through simple nodes|
-
-## Recent Implementation Enhancements
-
-The current implementation includes several production-ready features:
-
-### 1. Multi-Language Support
-- **Automatic Language Detection**: LLM detects user's language from messages
-- **Consistent Language Use**: Maintains same language throughout conversation
-- **No Configuration Required**: Works for all languages supported by the LLM
-- **Implementation**: Embedded in system prompt instructions
-
-### 2. Response Quality Control
-- **Thinking Trace Removal**: Strips internal LLM reasoning from responses
-- **Metadata Cleaning**: Removes workflow navigation comments
-- **User-Focused Output**: Only shows relevant information to users
-- **Pattern Matching**: Comprehensive regex patterns for various trace formats
-
-### 3. Robust Error Handling
-- **Empty Response Recovery**: Three-tier fallback mechanism
-- **Flow Reconnection**: Dedicated handler for post-tool-execution issues
-- **Context-Aware Fallbacks**: Uses current state to generate meaningful responses
-- **Graceful Degradation**: Always provides a response, never fails silently
-
-### 4. Intelligent Navigation
-- **Auto-Advancement**: Automatically progresses through simple nodes
-- **Safety Limits**: Prevents infinite loops with iteration caps
-- **End Node Detection**: Identifies when approaching conversation end
-- **Help Offer Removal**: Cleans up "anything else?" when concluding
-
-### 5. Context Intelligence
-- **Intent Detection**: Extracts customer decisions from natural language
-- **Pattern Recognition**: Identifies affirmative/negative responses
-- **Multi-Pattern Matching**: Handles various ways users express intent
-- **State-Aware**: Considers current node when extracting context
-
-### 6. Tool Integration
-- **LangChain Binding**: Proper tool binding for Anthropic/Claude models
-- **MCP Protocol**: Standard Model Context Protocol integration
-- **Dynamic Tool Loading**: Discovers available tools at runtime
-- **Result Context Mapping**: Automatically stores tool results in context
-
 ## Conclusion
 
 This architecture proves that **modern LLMs can execute complex workflows autonomously** when provided with:
@@ -517,6 +453,7 @@ This architecture proves that **modern LLMs can execute complex workflows autono
 No traditional workflow orchestration framework needed. The LLM IS the orchestrator.
 
 **Key Achievements**:
+
 - ✅ Fully autonomous workflow navigation
 - ✅ Natural multi-language conversations
 - ✅ Clean, user-focused responses
