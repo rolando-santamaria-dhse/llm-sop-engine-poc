@@ -74,6 +74,33 @@ export class SOPAgent {
     const state = this.stateManager.getState()
     const currentNode = this.sop.nodes[state.currentNodeId]
 
+    // Build message template instruction if current node has one
+    let messageTemplateInstruction = ''
+    if (currentNode?.messageTemplate) {
+      const filledTemplate = this.stateManager.replacePlaceholders(
+        currentNode.messageTemplate
+      )
+      messageTemplateInstruction = `
+
+# CRITICAL: REQUIRED MESSAGE TEMPLATE FOR CURRENT NODE
+The current node (${currentNode.id}) has a MANDATORY message template that you MUST use as the foundation of your response:
+
+TEMPLATE: "${currentNode.messageTemplate}"
+
+FILLED TEMPLATE (with context values): "${filledTemplate}"
+
+YOU MUST base your response on this filled template. You may:
+- Translate it to the user's language if needed
+- Add natural language connectors
+- Adjust the wording slightly for flow
+
+But you MUST NOT:
+- Ignore this template
+- Create a completely different message
+- Skip the key information in the template (e.g., if it asks about cancellation, you MUST ask about cancellation)
+`
+    }
+
     return `You are a customer support AI agent following a Standard Operating Procedure (SOP).
 
 # YOUR ROLE
@@ -106,9 +133,9 @@ ${state.conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join('\n
 2. **CRITICAL: Follow the SOP Flow**: You are currently at node "${state.currentNodeId}". Based on the node type and the SOP definition, determine what action to take next and guide the user accordingly.
 
 3. **Node Types**:
-   - **action**: Perform the described action. If a tool is specified, use it. If a messageTemplate exists, respond to the user with that message (with placeholders replaced from context).
-   - **decision**: Evaluate the condition based on the current context. Decide which path to take.
-   - **end**: The workflow is complete. Provide the final message.
+   - **action**: Perform the described action. If a tool is specified, use it. **CRITICAL**: If a messageTemplate exists, you MUST use that exact template as the basis for your response (replacing placeholders with context values). You may add minor natural language flow, but the core message MUST come from the template.
+   - **decision**: Evaluate the condition based on the current context. The decision has already been made for you based on the condition - simply proceed to communicate the appropriate next step.
+   - **end**: The workflow is complete. Provide the final message from the template.
 
 4. **Tool Execution**: When a node specifies a tool, you MUST call that tool with the appropriate parameters. Extract parameters from the context using the toolParams mapping.
 
@@ -135,10 +162,18 @@ ${state.conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join('\n
 
 8. **Natural Conversation**: While following the SOP strictly, maintain a natural, helpful tone in the user's language.
 
-9. **Response Format**: Your response should:
+9. **Message Templates**: **CRITICAL INSTRUCTION**
+   - When the current node has a messageTemplate, you MUST base your response on that template
+   - Replace all {context.xxx} placeholders with actual values from the context
+   - You may enhance the template with natural language and the user's language, but the core information from the template MUST be present
+   - Do NOT ignore the template and create a completely different message
+   - Example: If template says "order is delayed by X minutes", your response MUST mention this delay, not say "good news, it's on the way"
+
+10. **Response Format**: Your response should:
    - Address the user naturally in their language
    - Call tools when required by the current node
    - Extract any needed information from the user's message into context
+   - **Use message templates when provided** - this is mandatory
    - If moving to an end node next, conclude the conversation gracefully without offering additional help
    - **CRITICAL**: NEVER include thinking, internal processing, workflow navigation, or meta-commentary in your response
    - Respond ONLY with the customer-facing message - no explanations of what you're doing internally
@@ -149,6 +184,7 @@ ${state.conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join('\n
 ${Array.from(this.availableTools.values())
   .map((tool) => `- ${tool.name}: ${tool.description}`)
   .join('\n')}
+${messageTemplateInstruction}
 
 Now, process the user's message according to the SOP workflow.`
   }
