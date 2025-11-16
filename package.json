@@ -1,0 +1,38 @@
+{
+  "name": "langchain-litellm-project",
+  "version": "1.0.0",
+  "description": "A LangChain TypeScript project with LiteLLM integration",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:mcp": "tsc src/mcp-server/index.ts --outDir dist/mcp-server --module commonjs --target es2020 --moduleResolution node --esModuleInterop",
+    "start": "node dist/index.js",
+    "dev": "npm run build && node dist/index.js",
+    "test": "npm run build && node --test dist/tests/integration.test.js",
+    "clean": "rm -rf dist",
+    "lint": "bun prettier . --check",
+    "format": "bun prettier . --write"
+  },
+  "keywords": [
+    "langchain",
+    "litellm",
+    "typescript",
+    "llm"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.0.5",
+    "@langchain/openai": "^1.1.1",
+    "@modelcontextprotocol/sdk": "^1.22.0",
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "langchain": "^1.0.4",
+    "prettier": "^3.6.2"
+  }
+}
