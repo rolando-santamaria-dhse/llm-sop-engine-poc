@@ -17,10 +17,12 @@ export class SOPAgent {
   private llm: ChatOpenAI
   private mcpClient: Client | null = null
   private availableTools: Map<string, any> = new Map()
+  private userId: string
 
-  constructor(sop: SOP, llm: ChatOpenAI) {
+  constructor(sop: SOP, llm: ChatOpenAI, userId: string) {
     this.sop = sop
-    this.stateManager = new ExecutionStateManager(sop.startNode)
+    this.userId = userId
+    this.stateManager = new ExecutionStateManager(sop.startNode, userId)
     this.llm = llm
   }
 
@@ -143,6 +145,7 @@ Now, process the user's message according to the SOP workflow.`
 
   /**
    * Execute a tool via MCP
+   * Always includes userId in the tool parameters
    */
   private async executeTool(
     toolName: string,
@@ -152,11 +155,17 @@ Now, process the user's message according to the SOP workflow.`
       throw new Error('MCP client not initialized')
     }
 
-    console.log(`Executing tool: ${toolName} with params:`, parameters)
+    // Always include userId in tool parameters
+    const toolParameters = {
+      ...parameters,
+      userId: this.userId,
+    }
+
+    console.log(`Executing tool: ${toolName} with params:`, toolParameters)
 
     const response: any = await this.mcpClient.callTool({
       name: toolName,
-      arguments: parameters,
+      arguments: toolParameters,
     })
 
     // Parse the response
@@ -814,7 +823,7 @@ You MUST respond - do not leave this empty.`
    * Reset the agent to start over
    */
   reset(): void {
-    this.stateManager = new ExecutionStateManager(this.sop.startNode)
+    this.stateManager = new ExecutionStateManager(this.sop.startNode, this.userId)
   }
 
   /**

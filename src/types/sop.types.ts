@@ -51,6 +51,11 @@ export interface SOP {
 
 export interface ExecutionState {
   /**
+   * User ID associated with this execution
+   */
+  userId: string
+
+  /**
    * Current node in the SOP
    */
   currentNodeId: string

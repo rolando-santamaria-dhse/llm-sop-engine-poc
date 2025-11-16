@@ -141,8 +141,12 @@ const tools: Tool[] = [
           type: 'string',
           description: 'The unique identifier for the order',
         },
+        userId: {
+          type: 'string',
+          description: 'The unique identifier for the user making the request',
+        },
       },
-      required: ['orderId'],
+      required: ['orderId', 'userId'],
     },
   },
   {
@@ -160,8 +164,12 @@ const tools: Tool[] = [
           type: 'string',
           description: 'Reason for cancellation',
         },
+        userId: {
+          type: 'string',
+          description: 'The unique identifier for the user making the request',
+        },
       },
-      required: ['orderId', 'reason'],
+      required: ['orderId', 'reason', 'userId'],
     },
   },
   {
@@ -178,8 +186,12 @@ const tools: Tool[] = [
           type: 'number',
           description: 'Refund amount in dollars',
         },
+        userId: {
+          type: 'string',
+          description: 'The unique identifier for the user making the request',
+        },
       },
-      required: ['orderId', 'amount'],
+      required: ['orderId', 'amount', 'userId'],
     },
   },
 ]
@@ -210,7 +222,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     if (name === 'getOrderStatus') {
-      const { orderId } = args as { orderId: string }
+      const { orderId, userId } = args as { orderId: string; userId: string }
+      
+      // Log the userId for auditing purposes
+      console.error(`[getOrderStatus] User ${userId} requesting status for order ${orderId}`)
 
       const order = orders.get(orderId)
       if (!order) {
@@ -261,7 +276,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'cancelOrder') {
-      const { orderId, reason } = args as { orderId: string; reason: string }
+      const { orderId, reason, userId } = args as {
+        orderId: string
+        reason: string
+        userId: string
+      }
+      
+      // Log the userId for auditing purposes
+      console.error(`[cancelOrder] User ${userId} cancelling order ${orderId} - Reason: ${reason}`)
 
       const order = orders.get(orderId)
       if (!order) {
@@ -348,7 +370,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     if (name === 'refundOrder') {
-      const { orderId, amount } = args as { orderId: string; amount: number }
+      const { orderId, amount, userId } = args as {
+        orderId: string
+        amount: number
+        userId: string
+      }
+      
+      // Log the userId for auditing purposes
+      console.error(`[refundOrder] User ${userId} processing refund of $${amount} for order ${orderId}`)
 
       const order = orders.get(orderId)
       if (!order) {

@@ -41,7 +41,7 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
   describe('Critical Delay Path - Premium Member Cancellation', () => {
     it('should handle critical delay (>45 min) with premium member cancellation and priority refund', async () => {
-      const agent = new SOPAgent(OrderDelayExtendedSOP, llm)
+      const agent = new SOPAgent(OrderDelayExtendedSOP, llm, 'test-user-ext-001')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
@@ -156,7 +156,7 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
   describe('Moderate Delay Path - Tracking Instead of Cancellation', () => {
     it('should handle moderate delay (20-45 min) with customer choosing tracking', async () => {
-      const agent = new SOPAgent(OrderDelayExtendedSOP, llm)
+      const agent = new SOPAgent(OrderDelayExtendedSOP, llm, 'test-user-ext-002')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
@@ -209,7 +209,7 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
   describe('On-Time Order Path - Standard Flow', () => {
     it('should handle on-time order with simple status check', async () => {
-      const agent = new SOPAgent(OrderDelayExtendedSOP, llm)
+      const agent = new SOPAgent(OrderDelayExtendedSOP, llm, 'test-user-ext-003')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
@@ -263,7 +263,7 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
   describe('High-Value Order Path - Standard Refund', () => {
     it('should handle high-value order cancellation with standard refund (non-premium)', async () => {
-      const agent = new SOPAgent(OrderDelayExtendedSOP, llm)
+      const agent = new SOPAgent(OrderDelayExtendedSOP, llm, 'test-user-ext-004')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
@@ -317,7 +317,7 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
   describe('Compensation Voucher Path', () => {
     it('should offer voucher compensation when customer declines cancellation on critical delay', async () => {
-      const agent = new SOPAgent(OrderDelayExtendedSOP, llm)
+      const agent = new SOPAgent(OrderDelayExtendedSOP, llm, 'test-user-ext-005')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
@@ -368,7 +368,7 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
   describe('Extended Flow Validation - Node Transitions', () => {
     it('should navigate through at least 10 unique node transitions', async () => {
-      const agent = new SOPAgent(OrderDelayExtendedSOP, llm)
+      const agent = new SOPAgent(OrderDelayExtendedSOP, llm, 'test-user-ext-006')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
@@ -412,7 +412,7 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
   describe('Tool Execution in Extended Flow', () => {
     it('should execute all three tools in correct sequence during cancellation', async () => {
-      const agent = new SOPAgent(OrderDelayExtendedSOP, llm)
+      const agent = new SOPAgent(OrderDelayExtendedSOP, llm, 'test-user-ext-007')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 

@@ -10,10 +10,12 @@ import { ExecutionStateManager } from './execution-state'
 export class SOPNavigator {
   private sop: SOP
   private stateManager: ExecutionStateManager
+  private userId: string
 
-  constructor(sop: SOP) {
+  constructor(sop: SOP, userId: string) {
     this.sop = sop
-    this.stateManager = new ExecutionStateManager(sop.startNode)
+    this.userId = userId
+    this.stateManager = new ExecutionStateManager(sop.startNode, userId)
   }
 
   /**
@@ -124,7 +126,7 @@ export class SOPNavigator {
    * Reset the navigator to start over
    */
   reset(): void {
-    this.stateManager = new ExecutionStateManager(this.sop.startNode)
+    this.stateManager = new ExecutionStateManager(this.sop.startNode, this.userId)
   }
 
   /**

@@ -51,11 +51,13 @@ async function main() {
     temperature: 0.9,
   })
 
-  // Initialize SOP Agent
+  // Initialize SOP Agent with demo userId
   console.log(
     '\n📋 Loading SOP: Customer Support - Order Status & Cancellation'
   )
-  const agent = new SOPAgent(OrderDelayExtendedSOP, llm)
+  const demoUserId = 'demo-user-' + Date.now()
+  console.log(`👤 Demo User ID: ${demoUserId}`)
+  const agent = new SOPAgent(OrderDelayExtendedSOP, llm, demoUserId)
 
   // Initialize MCP Server connection
   console.log('🔧 Connecting to MCP Server...')

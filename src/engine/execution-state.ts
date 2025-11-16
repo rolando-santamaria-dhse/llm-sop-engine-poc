@@ -9,8 +9,9 @@ import { ExecutionState } from '../types/sop.types'
 export class ExecutionStateManager {
   private state: ExecutionState
 
-  constructor(startNodeId: string) {
+  constructor(startNodeId: string, userId: string) {
     this.state = {
+      userId,
       currentNodeId: startNodeId,
       visitedNodes: [startNodeId], // Mark start node as visited
       context: {},

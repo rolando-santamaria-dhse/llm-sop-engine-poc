@@ -42,8 +42,8 @@ describe('SOP Engine LLM Integration Tests', () => {
 
   describe('SOP Execution Determinism - Late Order Cancellation Path', () => {
     it('should consistently navigate to cancellation flow for late orders (English)', async () => {
-      // Initialize agent
-      agent = new SOPAgent(OrderDelaySOP, llm)
+      // Initialize agent with test userId
+      agent = new SOPAgent(OrderDelaySOP, llm, 'test-user-001')
 
       // Connect to MCP server
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
@@ -124,8 +124,8 @@ describe('SOP Engine LLM Integration Tests', () => {
     })
 
     it('should consistently navigate to cancellation flow for late orders (Spanish)', async () => {
-      // Initialize agent
-      agent = new SOPAgent(OrderDelaySOP, llm)
+      // Initialize agent with test userId
+      agent = new SOPAgent(OrderDelaySOP, llm, 'test-user-001')
 
       // Connect to MCP server
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
@@ -175,8 +175,8 @@ describe('SOP Engine LLM Integration Tests', () => {
 
   describe('SOP Execution Determinism - On-Time Order Path', () => {
     it('should consistently provide status for on-time orders and complete conversation', async () => {
-      // Initialize agent
-      agent = new SOPAgent(OrderDelaySOP, llm)
+      // Initialize agent with test userId
+      agent = new SOPAgent(OrderDelaySOP, llm, 'test-user-002')
 
       // Connect to MCP server
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
@@ -242,8 +242,8 @@ describe('SOP Engine LLM Integration Tests', () => {
 
   describe('SOP Execution Determinism - Customer Declines Cancellation', () => {
     it('should handle customer declining cancellation for late order', async () => {
-      // Initialize agent
-      agent = new SOPAgent(OrderDelaySOP, llm)
+      // Initialize agent with test userId
+      agent = new SOPAgent(OrderDelaySOP, llm, 'test-user-003')
 
       // Connect to MCP server
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
@@ -322,7 +322,7 @@ describe('SOP Engine LLM Integration Tests', () => {
       const results = []
 
       for (let i = 0; i < 2; i++) {
-        agent = new SOPAgent(OrderDelaySOP, llm)
+        agent = new SOPAgent(OrderDelaySOP, llm, `test-user-${i + 1}`)
         const mcpServerPath = path.join(
           __dirname,
           '..',
@@ -366,7 +366,7 @@ describe('SOP Engine LLM Integration Tests', () => {
     })
 
     it('should execute tools in correct sequence for cancellation flow', async () => {
-      agent = new SOPAgent(OrderDelaySOP, llm)
+      agent = new SOPAgent(OrderDelaySOP, llm, 'test-user-004')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
@@ -414,7 +414,7 @@ describe('SOP Engine LLM Integration Tests', () => {
 
   describe('SOP Execution Determinism - Context Preservation', () => {
     it('should maintain context across multiple interactions', async () => {
-      agent = new SOPAgent(OrderDelaySOP, llm)
+      agent = new SOPAgent(OrderDelaySOP, llm, 'test-user-005')
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
