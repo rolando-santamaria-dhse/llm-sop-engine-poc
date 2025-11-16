@@ -45,7 +45,9 @@ describe('Extended Order Delay SOP Integration Tests', () => {
       const mcpServerPath = path.join(__dirname, '..', 'mcp-server', 'index.js')
       await agent.initializeMCP('node', [mcpServerPath])
 
-      console.log('\n=== Test: Critical Delay + Premium Member + Cancellation ===')
+      console.log(
+        '\n=== Test: Critical Delay + Premium Member + Cancellation ==='
+      )
 
       // Step 1: Customer asks about their order (99999 has 50 min delay, >$50)
       const msg1 = 'Hi, where is my order #99999?'
@@ -82,12 +84,15 @@ describe('Extended Order Delay SOP Integration Tests', () => {
       // Agent should recognize critical delay and offer options
       const lowerResp = resp3.toLowerCase()
       assert.ok(
-        lowerResp.includes('cancel') || lowerResp.includes('refund') || lowerResp.includes('voucher'),
+        lowerResp.includes('cancel') ||
+          lowerResp.includes('refund') ||
+          lowerResp.includes('voucher'),
         'Agent should offer cancellation or compensation options'
       )
 
       // Step 4: Customer chooses cancellation - be very explicit
-      const msg4 = 'I want to cancel the order, please process the cancellation and refund'
+      const msg4 =
+        'I want to cancel the order, please process the cancellation and refund'
       const resp4 = await agent.processMessage(msg4)
       console.log(`\n[User] ${msg4}`)
       console.log(`[Agent] ${resp4}`)
@@ -96,15 +101,21 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
       const visitedNodes = state.visitedNodes
       console.log(`\n[Test] Nodes Visited: ${visitedNodes.join(' → ')}`)
-      console.log(`[Test] isPremiumMember in context: ${state.context.isPremiumMember}`)
-      console.log(`[Test] cancelResult present: ${!!state.context.cancelResult}`)
-      console.log(`[Test] refundResult present: ${!!state.context.refundResult}`)
-      
+      console.log(
+        `[Test] isPremiumMember in context: ${state.context.isPremiumMember}`
+      )
+      console.log(
+        `[Test] cancelResult present: ${!!state.context.cancelResult}`
+      )
+      console.log(
+        `[Test] refundResult present: ${!!state.context.refundResult}`
+      )
+
       // The most important thing is that the order was handled appropriately
       // Check that tools were executed (which the logs show they were)
       const hasCancellation = state.context.cancelResult
       const hasRefund = state.context.refundResult
-      
+
       // Verify critical delay path was taken
       assert.ok(
         visitedNodes.includes('critical_delay_response') ||
@@ -114,22 +125,30 @@ describe('Extended Order Delay SOP Integration Tests', () => {
 
       // For premium member with critical delay, should handle the situation
       // Either through cancellation/refund OR voucher compensation
-      const wasHandled = 
-        hasCancellation || 
+      const wasHandled =
+        hasCancellation ||
         hasRefund ||
         visitedNodes.includes('cancel_order') ||
         visitedNodes.includes('offer_voucher_compensation') ||
         visitedNodes.includes('process_priority_refund')
-      
-      assert.ok(wasHandled, 'Should handle critical delay with appropriate action')
-      
+
+      assert.ok(
+        wasHandled,
+        'Should handle critical delay with appropriate action'
+      )
+
       // Verify this is a high-value order
-      assert.ok(state.context.orderStatus.totalAmount > 50, 'Should be high-value order')
-      
+      assert.ok(
+        state.context.orderStatus.totalAmount > 50,
+        'Should be high-value order'
+      )
+
       // The key validation is that a critical delay was handled appropriately
       // The LLM may handle this through cancellation OR refund OR voucher
       // All are valid responses to the scenario
-      console.log(`[Test] Order was handled: wasHandled=${wasHandled}, method: ${hasCancellation ? 'cancellation' : hasRefund ? 'refund' : 'other'}`)
+      console.log(
+        `[Test] Order was handled: wasHandled=${wasHandled}, method: ${hasCancellation ? 'cancellation' : hasRefund ? 'refund' : 'other'}`
+      )
 
       await agent.close()
     })
@@ -285,7 +304,7 @@ describe('Extended Order Delay SOP Integration Tests', () => {
         visitedNodes.includes('confirm_standard_refund')
 
       assert.ok(hasRefundPath, 'Should reach refund processing path')
-      
+
       // Verify order value was high
       assert.ok(
         state.context.orderStatus.totalAmount > 50,
@@ -334,7 +353,9 @@ describe('Extended Order Delay SOP Integration Tests', () => {
       const hasVoucher = visitedNodes.includes('offer_voucher_compensation')
       const lowerResp = resp3.toLowerCase()
       const mentionsCompensation =
-        lowerResp.includes('voucher') || lowerResp.includes('compensation') || lowerResp.includes('$15')
+        lowerResp.includes('voucher') ||
+        lowerResp.includes('compensation') ||
+        lowerResp.includes('$15')
 
       assert.ok(
         hasVoucher || mentionsCompensation,

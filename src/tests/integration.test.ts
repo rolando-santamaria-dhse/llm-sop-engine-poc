@@ -273,11 +273,17 @@ describe('SOP Engine LLM Integration Tests', () => {
 
       // Verify NO cancellation was processed
       const state2 = agent.getExecutionState()
-      
-      console.log(`\n[Test] Context after decline:`, JSON.stringify(state2.context, null, 2))
+
+      console.log(
+        `\n[Test] Context after decline:`,
+        JSON.stringify(state2.context, null, 2)
+      )
       console.log(`[Test] Cancel result:`, state2.context.cancelResult)
-      console.log(`[Test] Customer wants cancellation:`, state2.context.customerWantsCancellation)
-      
+      console.log(
+        `[Test] Customer wants cancellation:`,
+        state2.context.customerWantsCancellation
+      )
+
       assert.ok(
         !state2.context.cancelResult,
         'Order should NOT be cancelled when customer declines'
@@ -286,17 +292,17 @@ describe('SOP Engine LLM Integration Tests', () => {
       // Response should acknowledge customer's decision to wait
       const lowerResponse = response2.toLowerCase()
       console.log(`\n[Test] Response (lower): "${lowerResponse}"`)
-      
-      const hasAcknowledgement = 
+
+      const hasAcknowledgement =
         lowerResponse.includes('understand') ||
         lowerResponse.includes('understood') ||
         lowerResponse.includes('wait') ||
         lowerResponse.includes('continue') ||
         lowerResponse.includes('keep') ||
         lowerResponse.includes('ok')
-      
+
       console.log(`\n[Test] Has acknowledgement: ${hasAcknowledgement}`)
-      
+
       assert.ok(
         hasAcknowledgement,
         "Agent should acknowledge customer's decision to wait"
