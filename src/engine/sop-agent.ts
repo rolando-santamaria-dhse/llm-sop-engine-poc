@@ -563,6 +563,14 @@ Now, process the user's message according to the SOP workflow.`
           break
         }
 
+        // Check if all required values for the decision are set
+        if (!this.canEvaluateDecision(currentNode.condition)) {
+          console.log(
+            `Decision node ${currentNode.id} cannot be evaluated yet - waiting for required context values. Stopping advancement.`
+          )
+          break
+        }
+
         const conditionMet = this.stateManager.evaluateCondition(
           currentNode.condition
         )
@@ -914,6 +922,14 @@ You MUST respond - do not leave this empty.`
 
       // Handle decision nodes - evaluate condition and choose path
       if (currentNode.type === 'decision' && currentNode.condition) {
+        // Check if we can evaluate the decision (all required values are set)
+        if (!this.canEvaluateDecision(currentNode.condition)) {
+          console.log(
+            `Decision node ${currentNode.id} in updateCurrentNode cannot be evaluated yet - stopping advancement.`
+          )
+          break
+        }
+
         const conditionMet = this.stateManager.evaluateCondition(
           currentNode.condition
         )
@@ -978,6 +994,48 @@ You MUST respond - do not leave this empty.`
     }
     
     return false
+  }
+
+  /**
+   * Check if decision condition can be evaluated (all required values are set)
+   * Returns false if any value in the condition is null or undefined
+   */
+  private canEvaluateDecision(condition: string): boolean {
+    const context = this.stateManager.getContext()
+    
+    // Extract all context paths from the condition
+    // e.g., "context.customerWantsCancellation === true" -> ["customerWantsCancellation"]
+    const contextPaths = condition.match(/context\.([a-zA-Z0-9_.]+)/g)
+    
+    if (!contextPaths) {
+      return true // No context references, can evaluate
+    }
+    
+    for (const match of contextPaths) {
+      const path = match.replace('context.', '')
+      const keys = path.split('.')
+      let value: any = context
+      
+      // Navigate through the path to get the value
+      for (const key of keys) {
+        if (value && typeof value === 'object' && key in value) {
+          value = value[key]
+        } else {
+          value = undefined
+          break
+        }
+      }
+      
+      // If the value is null or undefined, we can't evaluate the decision yet
+      if (value === null || value === undefined) {
+        console.log(
+          `Decision condition cannot be evaluated - ${path} is null/undefined`
+        )
+        return false
+      }
+    }
+    
+    return true
   }
 
   /**
