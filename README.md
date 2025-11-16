@@ -104,21 +104,11 @@ npm run build
 ## Available NPM Commands
 
 ```bash
-# Build the TypeScript project
-npm run build
-
-# Run the interactive demo
-npm run demo
-
-# Run comprehensive integration tests
-npm test
-
-# Clean build artifacts
-npm run clean
-
 # Development mode (build + run)
 npm run dev
 ```
+
+See `package.json/scripts` for more commands.
 
 ## Running the Demo
 
@@ -141,7 +131,7 @@ npm run demo
 Update your `.env` with your Anthropic API key and run:
 
 ```bash
-npm run demo
+npm run dev
 ```
 
 ## Usage Examples
