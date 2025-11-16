@@ -95,7 +95,7 @@ ${state.conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join('\n
    - Maintain consistency - if the user speaks Spanish, respond in Spanish; if German, respond in German, etc.
    - Support ALL languages naturally
 
-2. **Follow the SOP Flow**: You are currently at node "${state.currentNodeId}". Based on the node type and the SOP definition, determine what action to take next.
+2. **CRITICAL: Follow the SOP Flow**: You are currently at node "${state.currentNodeId}". Based on the node type and the SOP definition, determine what action to take next and guide the user accordingly.
 
 3. **Node Types**:
    - **action**: Perform the described action. If a tool is specified, use it. If a messageTemplate exists, respond to the user with that message (with placeholders replaced from context).
@@ -126,9 +126,12 @@ ${state.conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join('\n
 9. **Response Format**: Your response should:
    - Address the user naturally in their language
    - Call tools when required by the current node
-   - Indicate which node you're moving to next (in your thinking)
    - Extract any needed information from the user's message into context
    - If moving to an end node next, conclude the conversation gracefully without offering additional help
+   - **CRITICAL**: NEVER include thinking, internal processing, workflow navigation, or meta-commentary in your response
+   - Respond ONLY with the customer-facing message - no explanations of what you're doing internally
+   - Do NOT use phrases like "Thinking:", "<thinking>", "Based on the SOP workflow", "Moving to node", etc.
+   - Your response should be clean, natural conversation ONLY
 
 # AVAILABLE TOOLS
 ${Array.from(this.availableTools.values())
@@ -198,46 +201,67 @@ Now, process the user's message according to the SOP workflow.`
 
     // Remove thinking sections in various formats
     // Remove content between **Thinking:** and next paragraph or line break
-    cleaned = cleaned.replace(/\*\*Thinking:?\*\*[\s\S]*?(?=\n\n|\n[A-Z]|$)/gi, '')
-    
+    cleaned = cleaned.replace(
+      /\*\*Thinking:?\*\*[\s\S]*?(?=\n\n|\n[A-Z]|$)/gi,
+      ''
+    )
+
     // Remove content in <thinking> tags
     cleaned = cleaned.replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
-    
+
     // Remove content between [Thinking] markers
     cleaned = cleaned.replace(/\[Thinking\][\s\S]*?(?=\n\n|\n[A-Z]|$)/gi, '')
-    
+
     // Remove workflow/node navigation metadata
-    cleaned = cleaned.replace(/\*\*Workflow[^*]*\*\*:?[\s\S]*?(?=\n\n|\n[A-Z]|$)/gi, '')
+    cleaned = cleaned.replace(
+      /\*\*Workflow[^*]*\*\*:?[\s\S]*?(?=\n\n|\n[A-Z]|$)/gi,
+      ''
+    )
     cleaned = cleaned.replace(/---\s*\n\n\*\*Workflow[\s\S]*$/gi, '')
-    
+
     // Remove internal processing sections
-    cleaned = cleaned.replace(/---\s*\n*\*\*Internal Processing:?\*\*[\s\S]*$/gi, '')
-    cleaned = cleaned.replace(/---\s*\n*\*\*Internal State Update:?\*\*[\s\S]*$/gi, '')
+    cleaned = cleaned.replace(
+      /---\s*\n*\*\*Internal Processing:?\*\*[\s\S]*$/gi,
+      ''
+    )
+    cleaned = cleaned.replace(
+      /---\s*\n*\*\*Internal State Update:?\*\*[\s\S]*$/gi,
+      ''
+    )
     cleaned = cleaned.replace(/\*\*Internal Note:?\*\*[\s\S]*$/gi, '')
     cleaned = cleaned.replace(/---\s*\n*Internal Processing:[\s\S]*$/gi, '')
     cleaned = cleaned.replace(/\*\*My internal processing:?\*\*[\s\S]*$/gi, '')
-    
+
     // Remove function call markup that might leak through
-    cleaned = cleaned.replace(/<function_calls>[\s\S]*?<\/function_calls>/gi, '')
+    cleaned = cleaned.replace(
+      /<function_calls>[\s\S]*?<\/function_calls>/gi,
+      ''
+    )
     cleaned = cleaned.replace(/<tool_call>[\s\S]*?<\/tool_call>/gi, '')
-    
+
     // Remove "Based on the SOP workflow..." meta-commentary
     cleaned = cleaned.replace(/Based on the SOP workflow[^.]*\./gi, '')
-    
+
     // Remove "Let me execute..." and "I'll wait for..." meta-commentary
     cleaned = cleaned.replace(/Let me execute the \w+ tool:?\s*\n*/gi, '')
     cleaned = cleaned.replace(/I'll wait for the \w+ result[^.]*\.\s*\n*/gi, '')
-    
+
     // Remove navigation instructions like "I've reached the..." or "Moving to node..."
-    cleaned = cleaned.replace(/I've reached the `[^`]+` node[\s\S]*?(?=\n\n|[A-Z])/gi, '')
-    cleaned = cleaned.replace(/Moving to node `[^`]+`[\s\S]*?(?=\n\n|[A-Z])/gi, '')
-    
+    cleaned = cleaned.replace(
+      /I've reached the `[^`]+` node[\s\S]*?(?=\n\n|[A-Z])/gi,
+      ''
+    )
+    cleaned = cleaned.replace(
+      /Moving to node `[^`]+`[\s\S]*?(?=\n\n|[A-Z])/gi,
+      ''
+    )
+
     // Remove "The conversation has concluded..." type endings
     cleaned = cleaned.replace(/---\s*\n*The conversation has[\s\S]*$/gi, '')
-    
+
     // Clean up excessive whitespace
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
-    
+
     return cleaned
   }
 
@@ -282,8 +306,12 @@ Now, process the user's message according to the SOP workflow.`
   private isTransitioningToEnd(): boolean {
     const state = this.stateManager.getState()
     const currentNode = this.sop.nodes[state.currentNodeId]
-    
-    if (!currentNode || !currentNode.nextNodes || currentNode.nextNodes.length === 0) {
+
+    if (
+      !currentNode ||
+      !currentNode.nextNodes ||
+      currentNode.nextNodes.length === 0
+    ) {
       return false
     }
 
@@ -310,23 +338,56 @@ Now, process the user's message according to the SOP workflow.`
 
     // Remove common help offer patterns in multiple languages
     // English variations
-    cleaned = cleaned.replace(/[.!]\s*Is there anything else I can help you with\??\s*/gi, '.')
-    cleaned = cleaned.replace(/[.!]\s*Can I help you with anything else\??\s*/gi, '.')
-    cleaned = cleaned.replace(/[.!]\s*How else can I assist you( today)?\??\s*/gi, '.')
-    cleaned = cleaned.replace(/[.!]\s*Is there anything else you need\??\s*/gi, '.')
-    cleaned = cleaned.replace(/[.!]\s*Do you need any further assistance\??\s*/gi, '.')
-    cleaned = cleaned.replace(/[.!]\s*Let me know if you need anything else[.!]?\s*/gi, '.')
-    cleaned = cleaned.replace(/[.!]\s*Feel free to reach out if you need further help[.!]?\s*/gi, '.')
-    
+    cleaned = cleaned.replace(
+      /[.!]\s*Is there anything else I can help you with\??\s*/gi,
+      '.'
+    )
+    cleaned = cleaned.replace(
+      /[.!]\s*Can I help you with anything else\??\s*/gi,
+      '.'
+    )
+    cleaned = cleaned.replace(
+      /[.!]\s*How else can I assist you( today)?\??\s*/gi,
+      '.'
+    )
+    cleaned = cleaned.replace(
+      /[.!]\s*Is there anything else you need\??\s*/gi,
+      '.'
+    )
+    cleaned = cleaned.replace(
+      /[.!]\s*Do you need any further assistance\??\s*/gi,
+      '.'
+    )
+    cleaned = cleaned.replace(
+      /[.!]\s*Let me know if you need anything else[.!]?\s*/gi,
+      '.'
+    )
+    cleaned = cleaned.replace(
+      /[.!]\s*Feel free to reach out if you need further help[.!]?\s*/gi,
+      '.'
+    )
+
     // Spanish variations
-    cleaned = cleaned.replace(/[.!]\s*¿Hay algo más en lo que pueda ayudarte\??\s*/gi, '.')
-    cleaned = cleaned.replace(/[.!]\s*¿Puedo ayudarte con algo más\??\s*/gi, '.')
+    cleaned = cleaned.replace(
+      /[.!]\s*¿Hay algo más en lo que pueda ayudarte\??\s*/gi,
+      '.'
+    )
+    cleaned = cleaned.replace(
+      /[.!]\s*¿Puedo ayudarte con algo más\??\s*/gi,
+      '.'
+    )
     cleaned = cleaned.replace(/[.!]\s*¿Necesitas algo más\??\s*/gi, '.')
-    
+
     // German variations
-    cleaned = cleaned.replace(/[.!]\s*Kann ich Ihnen sonst noch helfen\??\s*/gi, '.')
-    cleaned = cleaned.replace(/[.!]\s*Gibt es noch etwas, bei dem ich helfen kann\??\s*/gi, '.')
-    
+    cleaned = cleaned.replace(
+      /[.!]\s*Kann ich Ihnen sonst noch helfen\??\s*/gi,
+      '.'
+    )
+    cleaned = cleaned.replace(
+      /[.!]\s*Gibt es noch etwas, bei dem ich helfen kann\??\s*/gi,
+      '.'
+    )
+
     // Clean up any resulting double periods or excessive whitespace
     cleaned = cleaned.replace(/\.{2,}/g, '.')
     cleaned = cleaned.replace(/\s{2,}/g, ' ')
@@ -419,8 +480,14 @@ Now, process the user's message according to the SOP workflow.`
 
           // If the response is empty after tool execution, reconnect the flow
           if (!assistantMessage) {
-            console.log('Empty response after tool execution, reconnecting flow...')
-            assistantMessage = await this.reconnectFlow(userMessage, toolName, toolResult)
+            console.log(
+              'Empty response after tool execution, reconnecting flow...'
+            )
+            assistantMessage = await this.reconnectFlow(
+              userMessage,
+              toolName,
+              toolResult
+            )
           }
         } catch (error) {
           console.error(`Error executing tool ${toolName}:`, error)
@@ -490,7 +557,10 @@ DO NOT call any tools - just provide a text response to the customer.`
       // Use the base LLM WITHOUT tool binding to prevent new tool calls
       const response = await this.llm.invoke([
         { role: 'system', content: simplePrompt },
-        { role: 'user', content: 'Please respond to the customer based on the tool result.' },
+        {
+          role: 'user',
+          content: 'Please respond to the customer based on the tool result.',
+        },
       ])
 
       const rawMessage = response.content.toString().trim()
@@ -572,42 +642,53 @@ You MUST respond - do not leave this empty.`
     // Detect customer's intent for cancellation
     const lowerUser = userMessage.toLowerCase()
     const state = this.stateManager.getState()
-    
+
     // Check if we're in a decision-making context (agent has offered cancellation)
-    if (state.currentNodeId === 'customer_decision' || this.stateManager.getContextValue('offeringCancellation')) {
+    if (
+      state.currentNodeId === 'customer_decision' ||
+      this.stateManager.getContextValue('offeringCancellation')
+    ) {
       // Negative responses indicating desire to keep the order - CHECK FIRST
-      const wantsToKeep = (
-        (lowerUser.startsWith('no') || lowerUser.includes(' no,') || lowerUser.includes(' no ')) ||
+      const wantsToKeep =
+        lowerUser.startsWith('no') ||
+        lowerUser.includes(' no,') ||
+        lowerUser.includes(' no ') ||
         lowerUser.includes('keep') ||
         lowerUser.includes('wait') ||
         lowerUser.includes("don't cancel") ||
         lowerUser.includes("i'll wait") ||
-        lowerUser.includes("i will wait") ||
-        lowerUser.includes("no thanks") ||
-        lowerUser.includes("not cancel")
-      )
-      
+        lowerUser.includes('i will wait') ||
+        lowerUser.includes('no thanks') ||
+        lowerUser.includes('not cancel')
+
       // Positive responses indicating desire to cancel
-      const wantsToCancel = (
-        ((lowerUser.startsWith('yes') || lowerUser.includes(' yes,') || lowerUser.includes(' yes ')) && 
-         !lowerUser.includes('no')) ||
-        ((lowerUser.includes('cancel') || lowerUser.includes('refund')) && 
-         !lowerUser.includes('no') && !lowerUser.includes("don't"))
-      )
-      
+      const wantsToCancel =
+        ((lowerUser.startsWith('yes') ||
+          lowerUser.includes(' yes,') ||
+          lowerUser.includes(' yes ')) &&
+          !lowerUser.includes('no')) ||
+        ((lowerUser.includes('cancel') || lowerUser.includes('refund')) &&
+          !lowerUser.includes('no') &&
+          !lowerUser.includes("don't"))
+
       if (wantsToKeep) {
         this.stateManager.updateContext('customerWantsCancellation', false)
-        console.log('Customer declined cancellation - customerWantsCancellation set to false')
+        console.log(
+          'Customer declined cancellation - customerWantsCancellation set to false'
+        )
       } else if (wantsToCancel) {
         this.stateManager.updateContext('customerWantsCancellation', true)
-        console.log('Customer accepted cancellation - customerWantsCancellation set to true')
+        console.log(
+          'Customer accepted cancellation - customerWantsCancellation set to true'
+        )
       }
     }
 
     // Track if we're offering cancellation
     const lowerAssistant = assistantMessage.toLowerCase()
     if (
-      (lowerAssistant.includes('cancel') || lowerAssistant.includes('refund')) &&
+      (lowerAssistant.includes('cancel') ||
+        lowerAssistant.includes('refund')) &&
       lowerAssistant.includes('?')
     ) {
       this.stateManager.updateContext('offeringCancellation', true)
@@ -629,36 +710,47 @@ You MUST respond - do not leave this empty.`
 
     // Nodes that have completed their action and should auto-advance
     // These are nodes where the agent has already provided the response or executed the tool
-    const completedActionNodes = ['provide_status', 'confirm_cancellation', 'continue_with_order']
-    
+    const completedActionNodes = [
+      'provide_status',
+      'confirm_cancellation',
+      'continue_with_order',
+    ]
+
     // Keep advancing through decision nodes and completed action nodes
     // until we reach a node that requires user input or an end node
     let maxIterations = 10 // Safety limit to prevent infinite loops
     let iterations = 0
-    
-    while (currentNode && currentNode.type !== 'end' && iterations < maxIterations) {
+
+    while (
+      currentNode &&
+      currentNode.type !== 'end' &&
+      iterations < maxIterations
+    ) {
       iterations++
-      
+
       if (!currentNode.nextNodes || currentNode.nextNodes.length === 0) {
         break
       }
 
       // Determine if we should advance from this node
       let shouldAdvance = false
-      
+
       if (currentNode.type === 'decision') {
         // Always advance through decision nodes - they just evaluate conditions
         shouldAdvance = true
       } else if (currentNode.type === 'action') {
         // For action nodes with tools, check if the tool has been executed
         if (currentNode.tool) {
-          shouldAdvance = this.hasToolBeenExecuted(currentNode.tool, state.context)
+          shouldAdvance = this.hasToolBeenExecuted(
+            currentNode.tool,
+            state.context
+          )
         } else {
           // For action nodes without tools (just messages), check if they're marked as completed
           shouldAdvance = completedActionNodes.includes(currentNode.id)
         }
       }
-      
+
       if (!shouldAdvance) {
         break
       }
@@ -678,7 +770,7 @@ You MUST respond - do not leave this empty.`
       // Update to next node
       this.stateManager.setCurrentNode(nextNodeId)
       currentNode = this.sop.nodes[nextNodeId]
-      
+
       // If we reached an end node, mark it as current and exit loop
       if (currentNode && currentNode.type === 'end') {
         break
@@ -689,7 +781,10 @@ You MUST respond - do not leave this empty.`
   /**
    * Check if a tool has been executed based on context
    */
-  private hasToolBeenExecuted(toolName: string, context: Record<string, any>): boolean {
+  private hasToolBeenExecuted(
+    toolName: string,
+    context: Record<string, any>
+  ): boolean {
     if (toolName === 'getOrderStatus') {
       return !!context.orderStatus
     } else if (toolName === 'cancelOrder') {
