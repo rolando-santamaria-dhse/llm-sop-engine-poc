@@ -183,7 +183,8 @@ export const OrderDelayExtendedSOP: SOP = {
     determine_refund_type: {
       id: 'determine_refund_type',
       type: 'decision',
-      description: 'Check if premium member or high-value order for priority refund',
+      description:
+        'Check if premium member or high-value order for priority refund',
       condition:
         'context.isPremiumMember === true || context.orderStatus.totalAmount > 50',
       nextNodes: ['process_priority_refund', 'process_standard_refund'],
@@ -239,8 +240,7 @@ export const OrderDelayExtendedSOP: SOP = {
     offer_discount_code: {
       id: 'offer_discount_code',
       type: 'action',
-      description:
-        'Provide additional discount code as goodwill gesture',
+      description: 'Provide additional discount code as goodwill gesture',
       messageTemplate:
         "As an apology for this experience, I've also added a 20% discount code to your account for your next order.",
       nextNodes: ['ask_satisfaction'],
@@ -251,7 +251,8 @@ export const OrderDelayExtendedSOP: SOP = {
       id: 'ask_additional_help',
       type: 'action',
       description: 'Check if customer needs any other assistance',
-      messageTemplate: 'Is there anything else I can help you with regarding your order?',
+      messageTemplate:
+        'Is there anything else I can help you with regarding your order?',
       nextNodes: ['check_additional_request'],
     },
 
