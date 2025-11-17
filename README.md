@@ -112,21 +112,7 @@ See `package.json/scripts` for more commands.
 
 ## Running the Demo
 
-### Option 1: With LiteLLM Proxy (Recommended)
-
-1. Start LiteLLM proxy in a separate terminal:
-
-```bash
-litellm --model anthropic/claude-sonnet-4.5
-```
-
-2. Run the interactive demo:
-
-```bash
-npm run demo
-```
-
-### Option 2: Direct API Access
+### Direct API Access
 
 Update your `.env` with your Anthropic API key and run:
 
