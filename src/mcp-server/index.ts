@@ -294,7 +294,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { userId } = args as { userId: string }
 
       // Log the userId for auditing purposes
-      logger.info({ userId }, 'Fetching user details')
+      logger.debug({ userId }, 'Fetching user details')
 
       const user = users.get(userId)
       if (!user) {
@@ -329,7 +329,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       const { orderId, userId } = args as { orderId: string; userId: string }
 
       // Log the userId for auditing purposes
-      logger.info({ userId, orderId }, 'User requesting order status')
+      logger.debug({ userId, orderId }, 'User requesting order status')
 
       const order = orders.get(orderId)
       if (!order) {
@@ -387,7 +387,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       // Log the userId for auditing purposes
-      logger.info({ userId, orderId, reason }, 'User cancelling order')
+      logger.debug({ userId, orderId, reason }, 'User cancelling order')
 
       const order = orders.get(orderId)
       if (!order) {
@@ -481,7 +481,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       // Log the userId for auditing purposes
-      logger.info({ userId, orderId, amount }, 'Processing refund')
+      logger.debug({ userId, orderId, amount }, 'Processing refund')
 
       const order = orders.get(orderId)
       if (!order) {
@@ -616,7 +616,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function main() {
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  logger.info('Order Management MCP Server running on stdio')
+  logger.debug('Order Management MCP Server running on stdio')
 }
 
 main().catch((error) => {

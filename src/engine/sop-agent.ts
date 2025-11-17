@@ -60,7 +60,7 @@ export class SOPAgent {
       for (const tool of toolsResponse.tools) {
         this.availableTools.set(tool.name, tool)
       }
-      logger.info(
+      logger.debug(
         { toolCount: this.availableTools.size },
         'Loaded tools from MCP server'
       )
@@ -73,6 +73,16 @@ export class SOPAgent {
   private buildSystemPrompt(): string {
     const state = this.stateManager.getState()
     const currentNode = this.sop.nodes[state.currentNodeId]
+
+    // Get next node information
+    let nextNodeInfo = 'None (end of workflow)'
+    if (currentNode?.nextNodes && currentNode.nextNodes.length > 0) {
+      const nextNodeDetails = currentNode.nextNodes.map((nodeId) => {
+        const node = this.sop.nodes[nodeId]
+        return node ? `${nodeId} (${node.type}: ${node.description})` : nodeId
+      })
+      nextNodeInfo = nextNodeDetails.join(', ')
+    }
 
     // Build message template instruction if current node has one
     let messageTemplateInstruction = ''
@@ -113,6 +123,7 @@ ${JSON.stringify(this.sop, null, 2)}
 - Current Node: ${state.currentNodeId}
 - Node Type: ${currentNode?.type}
 - Node Description: ${currentNode?.description}
+- Next Node(s): ${nextNodeInfo}
 - Visited Nodes: ${JSON.stringify(state.visitedNodes)}
 - Status: ${state.status}
 
@@ -540,7 +551,7 @@ Now, process the user's message according to the SOP workflow.`
           'Tool execution result'
         )
 
-        // Update context with tool result
+        // Store tool result in context using generic pattern
         if (currentNode.tool === 'getUserDetails') {
           this.stateManager.updateContext('userDetails', toolResult)
         } else if (currentNode.tool === 'getOrderStatus') {
@@ -593,12 +604,19 @@ Now, process the user's message according to the SOP workflow.`
         break
       }
 
-      // For action nodes with tools that have been executed, advance to next node
+      // For action nodes with tools that have been executed:
+      // - If the node has a messageTemplate, STOP here so the LLM can render it
+      // - If the node has no messageTemplate, advance to next node
       if (
         currentNode.type === 'action' &&
         currentNode.tool &&
         this.hasToolBeenExecuted(currentNode.tool, state.context)
       ) {
+        // If this node has a messageTemplate, stop here so it can be shown to the user
+        if (currentNode.messageTemplate) {
+          break
+        }
+        // Otherwise, advance to next node
         this.stateManager.setCurrentNode(currentNode.nextNodes[0])
         currentNode = this.sop.nodes[currentNode.nextNodes[0]]
         continue
@@ -701,7 +719,6 @@ Now, process the user's message according to the SOP workflow.`
           if (toolName === 'updateContext') {
             const { key, value } = toolArgs
             this.stateManager.updateContext(key, value)
-            logger.debug({ key, value }, 'Context updated')
             toolResult = { success: true, key, value }
           } else {
             // Execute MCP tool
@@ -722,11 +739,19 @@ Now, process the user's message according to the SOP workflow.`
             } else if (toolName === 'refundOrder') {
               this.stateManager.updateContext('refundResult', toolResult)
             }
+
+            // After MCP tool execution, advance through decision/action nodes if needed
+            // This ensures we're at the right node before building the system prompt
+            this.advanceAfterToolExecution()
           }
+
+          // After tool execution, rebuild system prompt with updated context
+          // This ensures messageTemplate placeholders are filled with tool results
+          const updatedSystemPrompt = this.buildSystemPrompt()
 
           // Now call LLM again with tool result to get natural response
           const followUpMessages = [
-            { role: 'system', content: systemPrompt },
+            { role: 'system', content: updatedSystemPrompt },
             { role: 'user', content: userMessage },
             {
               role: 'assistant',
@@ -807,6 +832,20 @@ Now, process the user's message according to the SOP workflow.`
   ): Promise<string> {
     const state = this.stateManager.getState()
     const currentNode = this.sop.nodes[state.currentNodeId]
+
+    // CRITICAL: If current node has a messageTemplate, use it!
+    if (currentNode?.messageTemplate) {
+      const filledTemplate = this.stateManager.replacePlaceholders(
+        currentNode.messageTemplate
+      )
+
+      logger.debug(
+        { nodeId: currentNode.id, template: filledTemplate },
+        'Using messageTemplate in reconnectFlow'
+      )
+
+      return filledTemplate
+    }
 
     // Simple prompt that just asks for a response based on the tool result
     // Do NOT use buildSystemPrompt() here to avoid triggering new tool calls

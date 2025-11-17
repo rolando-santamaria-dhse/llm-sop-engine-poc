@@ -93,25 +93,14 @@ export const OrderDelaySOP: SOP = {
       id: 'cancel_order',
       type: 'action',
       description: 'Cancel the order',
+      messageTemplate:
+        'Your order has been successfully cancelled and refund is on its way!',
       tool: 'cancelOrder',
       toolParams: {
         orderId: '{context.orderId}',
         reason: 'Late delivery - customer requested cancellation',
       },
-      nextNodes: ['process_refund'],
-    },
-
-    // Process refund after cancellation
-    process_refund: {
-      id: 'process_refund',
-      type: 'action',
-      description: 'Process refund for the cancelled order',
-      tool: 'refundOrder',
-      toolParams: {
-        orderId: '{context.orderId}',
-        amount: '{context.orderStatus.totalAmount}',
-      },
-      nextNodes: ['confirm_cancellation'],
+      nextNodes: ['end_conversation'],
     },
 
     // Confirm cancellation and refund

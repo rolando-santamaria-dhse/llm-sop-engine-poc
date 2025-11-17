@@ -46,6 +46,7 @@ export class ExecutionStateManager {
    */
   updateContext(key: string, value: any): void {
     this.state.context[key] = value
+    logger.debug({ key, value }, 'Context updated')
   }
 
   /**

@@ -169,24 +169,22 @@ The Order Delay SOP follows this flow:
 
 ```mermaid
 graph TD
-    START([START]) --> GREET[Greet Customer]
+    START([START]) --> GET_USER[Get User Details<br/>Tool: getUserDetails]
+    GET_USER --> GREET[Greet Customer<br/>By Name]
     GREET --> GET_STATUS[Get Order Status<br/>Tool: getOrderStatus]
     GET_STATUS --> CHECK_DELAY{Check Delay<br/>minutesLate > 20?}
 
-    CHECK_DELAY -->|Yes - Late| INFORM_DELAY[Inform Customer<br/>About Delay]
-    CHECK_DELAY -->|No - On Time| INFORM_STATUS[Inform Order Status]
+    CHECK_DELAY -->|Yes - Late| OFFER_CANCEL[Offer Cancellation<br/>Inform About Delay]
+    CHECK_DELAY -->|No - On Time| PROVIDE_STATUS[Provide Status<br/>& Delivery Time]
 
-    INFORM_DELAY --> OFFER_CANCEL[Offer Cancellation]
     OFFER_CANCEL --> CUSTOMER_DECISION{Customer Decision}
 
     CUSTOMER_DECISION -->|Yes - Cancel| CANCEL_ORDER[Cancel Order<br/>Tool: cancelOrder]
-    CUSTOMER_DECISION -->|No - Keep| APOLOGIZE[Apologize & Continue]
+    CUSTOMER_DECISION -->|No - Keep| CONTINUE_ORDER[Continue with Order<br/>Provide ETA]
 
-    CANCEL_ORDER --> PROCESS_REFUND[Process Refund<br/>Tool: refundOrder]
-    PROCESS_REFUND --> END_CANCEL([END - Refunded])
-
-    APOLOGIZE --> END_KEEP([END - Order Continues])
-    INFORM_STATUS --> END_STATUS([END - Status Provided])
+    CANCEL_ORDER --> END_CANCEL([END - Order Cancelled])
+    CONTINUE_ORDER --> END_KEEP([END - Order Continues])
+    PROVIDE_STATUS --> END_STATUS([END - Status Provided])
 
     style START fill:#90EE90
     style CHECK_DELAY fill:#FFE4B5
@@ -194,9 +192,9 @@ graph TD
     style END_CANCEL fill:#FFB6C1
     style END_KEEP fill:#FFB6C1
     style END_STATUS fill:#FFB6C1
+    style GET_USER fill:#E1F5FF
     style GET_STATUS fill:#E1F5FF
     style CANCEL_ORDER fill:#E1F5FF
-    style PROCESS_REFUND fill:#E1F5FF
 ```
 
 ## Key Features
