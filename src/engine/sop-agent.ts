@@ -519,7 +519,7 @@ Now, process the user's message according to the SOP workflow.`
 
             // Check if this is a required parameter and if it's missing
             if (contextValue === null || contextValue === undefined) {
-              logger.warn(
+              logger.debug(
                 { key, contextKey },
                 'Required parameter missing from context'
               )
@@ -536,7 +536,7 @@ Now, process the user's message according to the SOP workflow.`
 
       // Only execute the tool if all required parameters are present
       if (hasInvalidParams) {
-        logger.info(
+        logger.debug(
           { tool: currentNode.tool },
           'Skipping tool execution - required parameters missing'
         )
@@ -570,7 +570,7 @@ Now, process the user's message according to the SOP workflow.`
           // After executing tool, advance through any subsequent decision or action nodes
           this.advanceAfterToolExecution()
         } else {
-          logger.warn(
+          logger.debug(
             { tool: currentNode.tool, error: toolResult.error },
             'Tool returned an error - staying at current node'
           )
@@ -771,7 +771,7 @@ Now, process the user's message according to the SOP workflow.`
 
           // If the response is empty after tool execution, reconnect the flow
           if (!assistantMessage) {
-            logger.warn(
+            logger.debug(
               { toolName },
               'Empty response after tool execution - reconnecting flow'
             )
@@ -795,7 +795,7 @@ Now, process the user's message according to the SOP workflow.`
 
     // Ensure we always have a response
     if (!assistantMessage) {
-      logger.warn('Empty response received - generating fallback response')
+      logger.debug('Empty response received - generating fallback response')
       assistantMessage = await this.generateFallbackResponse(userMessage)
     }
 
