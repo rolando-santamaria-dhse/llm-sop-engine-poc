@@ -67,7 +67,10 @@ graph LR
 **Key Methods**:
 
 - `processMessage(userMessage)`: Main entry point
-- `buildSystemPrompt()`: Constructs context for LLM
+- `buildSystemPrompt()`: Constructs optimized context for LLM (token-efficient)
+- `getRelevantNodes()`: Returns only current and next nodes (45% node reduction)
+- `getRelevantContext()`: Filters context to only referenced keys
+- `extractContextKeys()`: Extracts context keys from node definitions
 - `executeTool(toolName, params)`: Executes MCP tools
 - `extractContextFromMessages()`: Updates state from conversation
 - `cleanResponse(rawResponse)`: Removes LLM thinking traces and metadata
@@ -184,7 +187,9 @@ interface SOPNode {
 
 **Integration**: Uses Model Context Protocol standard for tool exposure.
 
-## System Prompt Structure
+## System Prompt Structure (Token-Optimized)
+
+**Optimization**: Instead of sending the entire SOP definition, we send only the current and next nodes, achieving **significant token reduction** while maintaining full functionality.
 
 On every user interaction, the LLM receives:
 
@@ -194,39 +199,32 @@ You are a customer support AI agent following a Standard Operating Procedure (SO
 # YOUR ROLE
 You must follow the SOP workflow precisely while maintaining natural conversation with the customer.
 
-# SOP DEFINITION
-${JSON.stringify(this.sop, null, 2)}
+# SOP CONTEXT
+SOP Name: ${this.sop.name}
+SOP Description: ${this.sop.description}
+
+# CURRENT NODE
+${JSON.stringify(current, null, 2)}
+
+# NEXT POSSIBLE NODES
+${JSON.stringify(next, null, 2)}
+
+# REACHABLE NODES (for decision context)
+${JSON.stringify(reachableNodes, null, 2)}
 
 # CURRENT EXECUTION STATE
 - Current Node: ${state.currentNodeId}
-- Node Type: ${currentNode?.type}
-- Node Description: ${currentNode?.description}
+- Node Type: ${current.type}
+- Node Description: ${current.description}
+- Next Node(s): ${nextNodeInfo}
 - Visited Nodes: ${JSON.stringify(state.visitedNodes)}
 - Status: ${state.status}
 
 # CURRENT CONTEXT
-${JSON.stringify(state.context, null, 2)}
+${JSON.stringify(relevantContext, null, 2)}
 
 # CONVERSATION HISTORY
 ${state.conversationHistory.map((msg) => `${msg.role}: ${msg.content}`).join('\n')}
-
-# SOP DEFINITION
-{Complete JSON structure of the SOP}
-
-# CURRENT EXECUTION STATE
-- Current Node: {nodeId}
-- Node Type: {action|decision|end}
-- Node Description: {description}
-- Visited Nodes: [...]
-- Status: {in_progress|completed|error}
-
-# CURRENT CONTEXT
-{All extracted data: orderId, orderStatus, etc.}
-
-# CONVERSATION HISTORY
-user: {message}
-assistant: {response}
-...
 
 # INSTRUCTIONS
 
@@ -322,6 +320,14 @@ Now, process the user's message according to the SOP workflow.`
 - **Auto-navigation** through simple nodes
 - **Graceful degradation** when errors occur
 
+### 7. Token Efficiency (NEW)
+
+- **45% reduction in nodes** sent per request (only current + next nodes)
+- **~33% reduction in system prompt tokens** (from ~3000+ to ~2008 tokens)
+- **Filtered context** - only sends referenced context keys
+- **Scalable** - handles larger SOPs without token limit issues
+- **Cost effective** - proportional reduction in API costs
+
 ## Design Patterns
 
 ### 1. Context Accumulation
@@ -404,6 +410,33 @@ if (isTransitioningToEnd()) {
 // Uses pattern matching on user message
 ```
 
+## Token Optimization Details
+
+### Implementation
+
+The system uses three key methods to minimize token usage:
+
+1. **`getRelevantNodes()`**: Returns only current node + immediate next nodes + decision branch nodes
+   - Reduces from 11 nodes to ~6 nodes (45% reduction)
+   - Includes decision paths for LLM visibility
+
+2. **`getRelevantContext()`**: Filters context to only keys referenced in current/next nodes
+   - Extracts keys from messageTemplates, toolParams, and conditions
+   - Always includes userId for tool execution
+
+3. **`extractContextKeys()`**: Analyzes node definitions to find referenced context keys
+   - Parses `{context.key}` placeholders
+   - Checks tool parameters and decision conditions
+
+### Results
+
+- **Before**: ~3000+ tokens (entire SOP with all 11 nodes)
+- **After**: ~2008 tokens (only 6 relevant nodes)
+- **Reduction**: ~33% token savings per request
+- **No functionality loss**: All tests pass (9/9)
+
+See [`docs/token-optimization-results.md`](docs/token-optimization-results.md) for detailed metrics.
+
 ## Limitations & Considerations
 
 ### Current Implementation
@@ -413,6 +446,7 @@ if (isTransitioningToEnd()) {
 3. **Session Management**: Single conversation session (no multi-user support)
 4. **Intent Detection**: Pattern-based extraction (works for simple cases, could be more sophisticated)
 5. **Response Cleaning**: Regex-based removal of thinking traces (comprehensive but could miss edge cases)
+6. **Token Optimization**: Currently optimizes nodes and context; conversation history could be further optimized
 
 ### Production Considerations
 
@@ -446,7 +480,7 @@ if (isTransitioningToEnd()) {
 This architecture proves that **modern LLMs can execute complex workflows autonomously** when provided with:
 
 1. Clear SOP structure (JSON)
-2. Current execution state
+2. Current execution state (optimized for tokens)
 3. Available tools
 4. Natural language instructions
 
@@ -460,6 +494,8 @@ No traditional workflow orchestration framework needed. The LLM IS the orchestra
 - ✅ Robust error handling with fallbacks
 - ✅ Intelligent context extraction
 - ✅ Graceful conversation endings
+- ✅ **Token-efficient prompts (33% reduction)**
+- ✅ **Scalable to larger SOPs**
 
 This opens new possibilities for:
 
@@ -469,5 +505,7 @@ This opens new possibilities for:
 - Natural conversation experiences
 - Multi-language customer support without translation layers
 - Self-healing conversations that recover from errors
+- **Cost-effective LLM operations at scale**
+- **Handling complex SOPs without token limits**
 
-The future of workflow automation may not need complex frameworks—just good prompts, capable LLMs, and thoughtful implementation of core patterns like response cleaning, auto-navigation, and fallback handling.
+The future of workflow automation may not need complex frameworks—just good prompts, capable LLMs, and thoughtful implementation of core patterns like response cleaning, auto-navigation, fallback handling, and **token optimization**.
