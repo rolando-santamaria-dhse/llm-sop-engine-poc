@@ -25,7 +25,7 @@ This POC uses an **LLM-driven architecture** where Claude Sonnet 4.5 receives an
 graph TD
     A[User Input] --> B[SOP Agent]
     B --> C{Build System Prompt}
-    C --> D[Complete SOP JSON]
+    C --> D[Current and Next SOP Nodes Spec]
     C --> E[Current Execution State]
     C --> F[Conversation History]
     D --> G[Send to LLM<br/>Claude Sonnet 4.5]
